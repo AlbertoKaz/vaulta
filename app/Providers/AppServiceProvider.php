@@ -3,9 +3,14 @@
 namespace App\Providers;
 
 
+use App\Listeners\CreateDefaultWorkspaceForUser;
+use App\Listeners\SetCurrentWorkspaceOnLogin;
 use Carbon\CarbonImmutable;
+use Illuminate\Auth\Events\Login;
+use Illuminate\Auth\Events\Registered;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
 

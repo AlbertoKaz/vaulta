@@ -30,6 +30,8 @@ class CreateDefaultWorkspaceForUser
                 'role' => WorkspaceRole::OWNER,
                 'joined_at' => now(),
             ]);
+
+            session(['current_workspace_id' => $workspace->id]);
         });
     }
 

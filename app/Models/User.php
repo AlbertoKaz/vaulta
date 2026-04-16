@@ -47,6 +47,18 @@ class User extends Authenticatable
     }
 
     /**
+     * Clean session
+     */
+    public function currentWorkspace(): null
+    {
+        $workspaceId = session('current_workspace_id');
+
+        return $this->workspaces()
+            ->where('workspaces.id', $workspaceId)
+            ->first();
+    }
+
+    /**
      * Relations
      */
     public function ownedWorkspaces(): HasMany

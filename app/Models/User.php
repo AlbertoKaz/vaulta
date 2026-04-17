@@ -3,6 +3,7 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Models\Workspace;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -49,14 +50,19 @@ class User extends Authenticatable
     /**
      * Clean session
      */
-    public function currentWorkspace(): null
+    public function currentWorkspace()
     {
         $workspaceId = session('current_workspace_id');
+
+        if (! $workspaceId) {
+            return null;
+        }
 
         return $this->workspaces()
             ->where('workspaces.id', $workspaceId)
             ->first();
     }
+
 
     /**
      * Relations

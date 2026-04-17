@@ -1,10 +1,14 @@
 <?php
 
-function current_workspace()
+use App\Models\Workspace;
+
+function current_workspace(): ?Workspace
 {
-    if (! auth()->check()) {
+    $user = auth()->user();
+
+    if (! $user) {
         return null;
     }
 
-    return auth()->user()->currentWorkspace();
+    return $user->currentWorkspace();
 }

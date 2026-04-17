@@ -31,4 +31,9 @@ class Workspace extends Model
             ->withPivot(['role', 'joined_at'])
             ->withTimestamps();
     }
+
+    public function collections(): HasMany
+    {
+        return $this->hasMany(Collection::class);
+    }
 }

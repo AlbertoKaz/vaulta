@@ -12,6 +12,9 @@ Route::middleware(['auth', 'workspace'])->group(function () {
     Route::livewire('/collections', 'collections.index')
         ->name('collections.index');
 
+    Route::livewire('/collections/{collection}/items', 'items.index')
+        ->name('items.index');
+
 });
 
 require __DIR__.'/settings.php';

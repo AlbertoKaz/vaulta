@@ -165,6 +165,13 @@ new class extends Component
                         <button wire:click="delete({{ $collection->id }})" class="text-red-500 text-sm">
                             Delete
                         </button>
+
+                        <a
+                            href="{{ route('items.index', $collection) }}"
+                            class="text-sm text-blue-500"
+                        >
+                            View items
+                        </a>
                     </div>
                 </div>
             @endif

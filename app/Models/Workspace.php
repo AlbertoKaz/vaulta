@@ -36,4 +36,9 @@ class Workspace extends Model
     {
         return $this->hasMany(Collection::class);
     }
+
+    public function items(): HasMany
+    {
+        return $this->hasMany(Item::class);
+    }
 }

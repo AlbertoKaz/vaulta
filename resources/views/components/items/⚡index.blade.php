@@ -1,5 +1,7 @@
 <?php
 
+use App\Enums\ItemCondition;
+use App\Enums\ItemStatus;
 use App\Models\Collection;
 use App\Models\Item;
 use Illuminate\Support\Str;
@@ -12,6 +14,7 @@ new class extends Component {
 
     public string $name = '';
     public ?string $description = null;
+    public string $status = 'active';
     public ?string $condition = null;
     public ?string $location = null;
     public ?string $notes = null;
@@ -19,6 +22,7 @@ new class extends Component {
     public ?int $editingId = null;
     public string $editingName = '';
     public ?string $editingDescription = null;
+    public ?string $editingStatus = null;
     public ?string $editingCondition = null;
     public ?string $editingLocation = null;
     public ?string $editingNotes = null;
@@ -41,8 +45,9 @@ new class extends Component {
     {
         $this->validate([
             'name' => 'required|string|max:255',
-            'description' => 'nullable|string|max:255',
+            'description' => 'nullable|string',
             'condition' => 'nullable|string|max:255',
+            'status' => 'required|string|max:255',
             'location' => 'nullable|string|max:255',
             'notes' => 'nullable|string'
         ]);
@@ -73,10 +78,10 @@ new class extends Component {
             'name' => $this->name,
             'slug' => $slug,
             'description' => $this->description,
+            'status' => ItemStatus::ACTIVE,
             'condition' => $this->condition,
             'location' => $this->location,
             'notes' => $this->notes,
-            'status' => 'active',
         ]);
 
         $this->reset([
@@ -86,13 +91,15 @@ new class extends Component {
             'location',
             'notes',
         ]);
+
+        $this->status = ItemStatus::ACTIVE->value;
     }
 
     public function edit(int $id): void
     {
         $workspace = current_workspace();
 
-        if (! $workspace) {
+        if (!$workspace) {
             return;
         }
 
@@ -101,14 +108,15 @@ new class extends Component {
             ->where('id', $id)
             ->first();
 
-        if (! $item) {
+        if (!$item) {
             return;
         }
 
         $this->editingId = $item->id;
         $this->editingName = $item->name;
         $this->editingDescription = $item->description;
-        $this->editingCondition = $item->condition;
+        $this->editingStatus = $item->status?->value;
+        $this->editingCondition = $item->condition?->value;
         $this->editingLocation = $item->location;
         $this->editingNotes = $item->notes;
     }
@@ -120,6 +128,7 @@ new class extends Component {
             'editingName',
             'editingDescription',
             'editingCondition',
+            'editingStatus',
             'editingLocation',
             'editingNotes',
         ]);
@@ -131,13 +140,14 @@ new class extends Component {
             'editingName' => 'required|string|max:255',
             'editingDescription' => 'nullable|string',
             'editingCondition' => 'nullable|string|max:255',
+            'editingStatus' => 'nullable|string|max:255',
             'editingLocation' => 'nullable|string|max:255',
             'editingNotes' => 'nullable|string',
         ]);
 
         $workspace = current_workspace();
 
-        if (! $workspace || ! $this->editingId) {
+        if (!$workspace || !$this->editingId) {
             return;
         }
 
@@ -146,7 +156,7 @@ new class extends Component {
             ->where('id', $this->editingId)
             ->first();
 
-        if (! $item) {
+        if (!$item) {
             return;
         }
 
@@ -154,6 +164,7 @@ new class extends Component {
             'name' => $this->editingName,
             'description' => $this->editingDescription,
             'condition' => $this->editingCondition,
+            'status' => $this->editingStatus,
             'location' => $this->editingLocation,
             'notes' => $this->editingNotes,
         ]);
@@ -223,12 +234,23 @@ new class extends Component {
             class="w-full border rounded px-3 py-2"
         ></textarea>
 
-        <input
-            type="text"
-            wire:model="condition"
-            placeholder="Condition"
-            class="w-full border rounded px-3 py-2"
-        >
+        <select wire:model="status" class="w-full border rounded px-3 py-2">
+            @foreach (\App\Enums\ItemStatus::cases() as $status)
+                <option value="{{ $status->value }}">
+                    {{ $status->label() }}
+                </option>
+            @endforeach
+        </select>
+
+        <select wire:model="condition" class="w-full border rounded px-3 py-2">
+            <option value="">-- Condition --</option>
+
+            @foreach (\App\Enums\ItemCondition::cases() as $condition)
+                <option value="{{ $condition->value }}">
+                    {{ $condition->label() }}
+                </option>
+            @endforeach
+        </select>
 
         <input
             type="text"
@@ -270,12 +292,23 @@ new class extends Component {
                             placeholder="Description"
                         ></textarea>
 
-                        <input
-                            type="text"
-                            wire:model="editingCondition"
-                            class="w-full border rounded px-3 py-2"
-                            placeholder="Condition"
-                        >
+                        <select wire:model="editingCondition" class="w-full border rounded px-3 py-2">
+                            <option value="">-- Condition --</option>
+
+                            @foreach (\App\Enums\ItemCondition::cases() as $condition)
+                                <option value="{{ $condition->value }}">
+                                    {{ $condition->label() }}
+                                </option>
+                            @endforeach
+                        </select>
+
+                        <select wire:model="editingStatus" class="w-full border rounded px-3 py-2">
+                            @foreach (\App\Enums\ItemStatus::cases() as $status)
+                                <option value="{{ $status->value }}">
+                                    {{ $status->label() }}
+                                </option>
+                            @endforeach
+                        </select>
 
                         <input
                             type="text"
@@ -317,7 +350,15 @@ new class extends Component {
                             @endif
 
                             @if ($item->condition)
-                                <p class="text-sm mt-1">Condition: {{ $item->condition }}</p>
+                                <p class="text-sm mt-1">
+                                    Condition: {{ $item->condition->label() }}
+                                </p>
+                            @endif
+
+                            @if ($item->status)
+                                <p class="text-sm mt-1">
+                                    Status: {{ $item->status->label() }}
+                                </p>
                             @endif
 
                             @if ($item->location)

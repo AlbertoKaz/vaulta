@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Enums\ItemCondition;
+use App\Enums\ItemStatus;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -25,6 +27,8 @@ class Item extends Model
     protected function casts(): array
     {
         return [
+            'status' => ItemStatus::class,
+            'condition' => ItemCondition::class,
             'purchase_price' => 'decimal:2',
             'estimated_value' => 'decimal:2',
             'acquired_at' => 'date',

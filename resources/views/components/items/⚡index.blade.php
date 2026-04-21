@@ -18,6 +18,8 @@ new class extends Component {
     public ?string $condition = null;
     public ?string $location = null;
     public ?string $notes = null;
+    public ?string $purchase_price = null;
+    public ?string $estimated_value = null;
 
     public ?string $filterStatus = null;
     public ?string $filterCondition = null;
@@ -29,6 +31,8 @@ new class extends Component {
     public ?string $editingCondition = null;
     public ?string $editingLocation = null;
     public ?string $editingNotes = null;
+    public ?string $editingPurchasePrice = null;
+    public ?string $editingEstimatedValue = null;
 
     public function mount(Collection $collection): void
     {
@@ -52,7 +56,9 @@ new class extends Component {
             'condition' => 'nullable|string|max:255',
             'status' => 'required|string|max:255',
             'location' => 'nullable|string|max:255',
-            'notes' => 'nullable|string'
+            'notes' => 'nullable|string',
+            'purchase_price' => 'nullable|numeric|min:0',
+            'estimated_value' => 'nullable|numeric|min:0',
         ]);
 
         $workspace = current_workspace();
@@ -83,6 +89,8 @@ new class extends Component {
             'description' => $this->description,
             'status' => $this->status,
             'condition' => $this->condition,
+            'purchase_price' => $this->purchase_price,
+            'estimated_value' => $this->estimated_value,
             'location' => $this->location,
             'notes' => $this->notes,
         ]);
@@ -91,11 +99,14 @@ new class extends Component {
             'name',
             'description',
             'condition',
+            'purchase_price',
+            'estimated_value',
             'location',
             'notes',
         ]);
 
         $this->status = ItemStatus::ACTIVE->value;
+
     }
 
     public function edit(int $id): void
@@ -120,6 +131,8 @@ new class extends Component {
         $this->editingDescription = $item->description;
         $this->editingStatus = $item->status?->value;
         $this->editingCondition = $item->condition?->value;
+        $this->editingPurchasePrice = $item->purchase_price;
+        $this->editingEstimatedValue = $item->estimated_value;
         $this->editingLocation = $item->location;
         $this->editingNotes = $item->notes;
     }
@@ -132,6 +145,8 @@ new class extends Component {
             'editingDescription',
             'editingCondition',
             'editingStatus',
+            'editingPurchasePrice',
+            'editingEstimatedValue',
             'editingLocation',
             'editingNotes',
         ]);
@@ -145,6 +160,8 @@ new class extends Component {
             'editingCondition' => 'nullable|string|max:255',
             'editingStatus' => 'nullable|string|max:255',
             'editingLocation' => 'nullable|string|max:255',
+            'editingPurchasePrice' => 'nullable|numeric|min:0',
+            'editingEstimatedValue' => 'nullable|numeric|min:0',
             'editingNotes' => 'nullable|string',
         ]);
 
@@ -168,6 +185,8 @@ new class extends Component {
             'description' => $this->editingDescription,
             'condition' => $this->editingCondition,
             'status' => $this->editingStatus,
+            'purchase_price' => $this->editingPurchasePrice,
+            'estimated_value' => $this->editingEstimatedValue,
             'location' => $this->editingLocation,
             'notes' => $this->editingNotes,
         ]);
@@ -264,6 +283,26 @@ new class extends Component {
         </select>
 
         <input
+            type="number"
+            step="0.01"
+            min="0"
+            wire:model="purchase_price"
+            placeholder="Purchase price"
+            class="w-full border rounded px-3 py-2"
+        >
+        @error('purchase_price') <p class="text-sm text-red-500">{{ $message }}</p> @enderror
+
+        <input
+            type="number"
+            step="0.01"
+            min="0"
+            wire:model="estimated_value"
+            placeholder="Estimated value"
+            class="w-full border rounded px-3 py-2"
+        >
+        @error('estimated_value') <p class="text-sm text-red-500">{{ $message }}</p> @enderror
+
+        <input
             type="text"
             wire:model="location"
             placeholder="Location"
@@ -350,6 +389,24 @@ new class extends Component {
                                 </option>
                             @endforeach
                         </select>
+
+                        <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            wire:model="editingPurchasePrice"
+                            class="w-full border rounded px-3 py-2"
+                            placeholder="Purchase price"
+                        >
+
+                        <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            wire:model="editingEstimatedValue"
+                            class="w-full border rounded px-3 py-2"
+                            placeholder="Estimated value"
+                        >
 
                         <input
                             type="text"

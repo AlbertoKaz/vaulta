@@ -19,6 +19,9 @@ new class extends Component {
     public ?string $location = null;
     public ?string $notes = null;
 
+    public ?string $filterStatus = null;
+    public ?string $filterCondition = null;
+
     public ?int $editingId = null;
     public string $editingName = '';
     public ?string $editingDescription = null;
@@ -78,7 +81,7 @@ new class extends Component {
             'name' => $this->name,
             'slug' => $slug,
             'description' => $this->description,
-            'status' => ItemStatus::ACTIVE,
+            'status' => $this->status,
             'condition' => $this->condition,
             'location' => $this->location,
             'notes' => $this->notes,
@@ -196,14 +199,22 @@ new class extends Component {
     {
         $workspace = current_workspace();
 
-        if (!$workspace) {
+        if (! $workspace) {
             return collect();
         }
 
-        return Item::where('workspace_id', $workspace->id)
-            ->where('collection_id', $this->collection->id)
-            ->latest()
-            ->get();
+        $query = Item::where('workspace_id', $workspace->id)
+            ->where('collection_id', $this->collection->id);
+
+        if ($this->filterStatus) {
+            $query->where('status', $this->filterStatus);
+        }
+
+        if ($this->filterCondition) {
+            $query->where('condition', $this->filterCondition);
+        }
+
+        return $query->latest()->get();
     }
 
 };
@@ -274,6 +285,36 @@ new class extends Component {
     </form>
 
     <div class="space-y-3">
+        <div class="flex gap-3">
+            <select wire:model.change.live="filterStatus" class="border rounded px-3 py-2">
+                <option value="">All status</option>
+
+                @foreach (\App\Enums\ItemStatus::cases() as $status)
+                    <option value="{{ $status->value }}">
+                        {{ $status->label() }}
+                    </option>
+                @endforeach
+            </select>
+
+            <select wire:model.change.live="filterCondition" class="border rounded px-3 py-2">
+                <option value="">All conditions</option>
+
+                @foreach (\App\Enums\ItemCondition::cases() as $condition)
+                    <option value="{{ $condition->value }}">
+                        {{ $condition->label() }}
+                    </option>
+                @endforeach
+            </select>
+
+            <button
+                type="button"
+                wire:click="$set('filterStatus', ''); $set('filterCondition', '')"
+                class="text-sm text-gray-500"
+            >
+                Reset
+            </button>
+        </div>
+
         @forelse ($this->items as $item)
             <div class="border rounded p-4 space-y-3">
                 @if ($editingId === $item->id)

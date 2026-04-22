@@ -16,7 +16,9 @@ new class extends Component
             'name' => 'required|string|max:255',
         ]);
 
-        if (! current_workspace()) {
+        $workspace = current_workspace();
+
+        if (! $workspace) {
             return;
         }
 
@@ -25,7 +27,7 @@ new class extends Component
         $counter = 2;
 
         while (
-        Collection::where('workspace_id', current_workspace()->id)
+        Collection::where('workspace_id', $workspace->id)
             ->where('slug', $slug)
             ->exists()
         ) {
@@ -34,7 +36,7 @@ new class extends Component
         }
 
         Collection::create([
-            'workspace_id' => current_workspace()->id,
+            'workspace_id' => $workspace->id,
             'name' => $this->name,
             'slug' => $slug,
         ]);
@@ -44,7 +46,13 @@ new class extends Component
 
     public function edit(int $id): void
     {
-        $collection = current_workspace()
+        $workspace = current_workspace();
+
+        if (! $workspace) {
+            return;
+        }
+
+        $collection = $workspace
             ->collections()
             ->where('id', $id)
             ->first();
@@ -63,7 +71,13 @@ new class extends Component
             'editingName' => 'required|string|max:255',
         ]);
 
-        $collection = current_workspace()
+        $workspace = current_workspace();
+
+        if (! $workspace) {
+            return;
+        }
+
+        $collection = $workspace
             ->collections()
             ->where('id', $this->editingId)
             ->first();
@@ -81,11 +95,13 @@ new class extends Component
 
     public function delete(int $id): void
     {
-        if (! current_workspace()) {
+        $workspace = current_workspace();
+
+        if (! $workspace) {
             return;
         }
 
-        $collection = current_workspace()
+        $collection = $workspace
             ->collections()
             ->where('id', $id)
             ->first();
@@ -99,11 +115,13 @@ new class extends Component
 
     public function getCollectionsProperty()
     {
-        if (! current_workspace()) {
+        $workspace = current_workspace();
+
+        if (! $workspace) {
             return collect();
         }
 
-        return current_workspace()
+        return $workspace
             ->collections()
             ->latest()
             ->get();

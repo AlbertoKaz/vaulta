@@ -117,8 +117,7 @@ new class extends Component {
             return;
         }
 
-        $item = Item::where('workspace_id', $workspace->id)
-            ->where('collection_id', $this->collection->id)
+        $item = $this->collection->items()
             ->where('id', $id)
             ->first();
 
@@ -202,8 +201,7 @@ new class extends Component {
             return;
         }
 
-        $item = Item::where('workspace_id', $workspace->id)
-            ->where('collection_id', $this->collection->id)
+        $item = $this->collection->items()
             ->where('id', $id)
             ->first();
 
@@ -222,8 +220,7 @@ new class extends Component {
             return collect();
         }
 
-        $query = Item::where('workspace_id', $workspace->id)
-            ->where('collection_id', $this->collection->id);
+        $query = $this->collection->items();
 
         if ($this->filterStatus) {
             $query->where('status', $this->filterStatus);

@@ -39,7 +39,7 @@ new class extends Component {
             $this->role = 'member';
 
             session()->flash('success', 'Invitation created successfully.');
-        } catch (\DomainException $e) {
+        } catch (DomainException $e) {
             $this->addError('email', $e->getMessage());
         }
     }
@@ -72,9 +72,78 @@ new class extends Component {
 
         return $workspace->members()
             ->with('user')
-            ->orderBy('role')
-            ->latest('joined_at')
+            ->orderByRaw("
+                case role
+                    when 'owner' then 1
+                    when 'admin' then 2
+                    when 'member' then 3
+                    else 4
+                end
+            ")
             ->get();
+    }
+
+    public function changeRole(int $memberId, string $role): void
+    {
+        $workspace = current_workspace();
+
+        if (! $workspace) {
+            return;
+        }
+
+        Gate::authorize('updateMember', $workspace);
+
+        if (! in_array($role, [
+            WorkspaceRole::ADMIN->value,
+            WorkspaceRole::MEMBER->value,
+        ], true)) {
+            return;
+        }
+
+        $member = $workspace->members()
+            ->where('id', $memberId)
+            ->first();
+
+        if (! $member) {
+            return;
+        }
+
+        if ($member->role === WorkspaceRole::OWNER) {
+            return;
+        }
+
+        $member->update([
+            'role' => $role,
+        ]);
+
+        session()->flash('success', 'Member role updated successfully.');
+    }
+
+    public function removeMember(int $memberId): void
+    {
+        $workspace = current_workspace();
+
+        if (! $workspace) {
+            return;
+        }
+
+        Gate::authorize('removeMember', $workspace);
+
+        $member = $workspace->members()
+            ->where('id', $memberId)
+            ->first();
+
+        if (! $member) {
+            return;
+        }
+
+        if ($member->role === WorkspaceRole::OWNER) {
+            return;
+        }
+
+        $member->delete();
+
+        session()->flash('success', 'Member removed successfully.');
     }
 };
 ?>
@@ -168,12 +237,35 @@ new class extends Component {
 
         <div class="space-y-3">
             @forelse ($this->members as $member)
-                <div class="rounded-lg border px-4 py-3">
-                    <div class="font-medium">{{ $member->user->name }}</div>
-                    <div class="text-sm text-gray-500">{{ $member->user->email }}</div>
-                    <div class="text-sm text-gray-500">
-                        Role: {{ $member->role->value }}
+                <div class="rounded-lg border px-4 py-3 flex items-center justify-between gap-4">
+                    <div>
+                        <div class="font-medium">{{ $member->user->name }}</div>
+                        <div class="text-sm text-gray-500">{{ $member->user->email }}</div>
+                        <div class="text-xs text-gray-400 uppercase">{{ $member->role->value }}</div>
                     </div>
+
+                    @can('updateMember', current_workspace())
+                        @if ($member->role->value !== 'owner')
+                            <div class="flex items-center gap-2">
+                                <select
+                                    wire:change="changeRole({{ $member->id }}, $event.target.value)"
+                                    class="rounded-lg border px-3 py-2 text-sm"
+                                >
+                                    <option value="member" @selected($member->role->value === 'member')>Member</option>
+                                    <option value="admin" @selected($member->role->value === 'admin')>Admin</option>
+                                </select>
+
+                                <button
+                                    type="button"
+                                    wire:click="removeMember({{ $member->id }})"
+                                    wire:confirm="Are you sure you want to remove this member?"
+                                    class="rounded-lg border px-3 py-2 text-sm"
+                                >
+                                    Remove
+                                </button>
+                            </div>
+                        @endif
+                    @endcan
                 </div>
             @empty
                 <p class="text-sm text-gray-500">No members found.</p>

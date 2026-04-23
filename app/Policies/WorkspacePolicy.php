@@ -43,4 +43,30 @@ class WorkspacePolicy
 
         return $membership->role === WorkspaceRole::OWNER;
     }
+
+    public function updateMember(User $user, Workspace $workspace): bool
+    {
+        $membership = $workspace->members()
+            ->where('user_id', $user->id)
+            ->first();
+
+        if (! $membership) {
+            return false;
+        }
+
+        return $membership->role === \App\Enums\WorkspaceRole::OWNER;
+    }
+
+    public function removeMember(User $user, Workspace $workspace): bool
+    {
+        $membership = $workspace->members()
+            ->where('user_id', $user->id)
+            ->first();
+
+        if (! $membership) {
+            return false;
+        }
+
+        return $membership->role === \App\Enums\WorkspaceRole::OWNER;
+    }
 }

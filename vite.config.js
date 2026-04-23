@@ -12,6 +12,12 @@ export default defineConfig({
             host: 'localhost',
             port: 5173,
         },
+        cors: {
+            origin: [
+                'http://localhost:8000',
+                'http://127.0.0.1:8000',
+            ],
+        },
     },
     plugins: [
         laravel({

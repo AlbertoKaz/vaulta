@@ -114,6 +114,11 @@ new class extends Component
     <div>
         <h1 class="text-3xl font-bold">
             Dashboard
+            <div class="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                Session workspace ID: {{ session('current_workspace_id') }}<br>
+                Helper workspace: {{ current_workspace()?->name }}<br>
+                Helper workspace ID: {{ current_workspace()?->id }}
+            </div>
         </h1>
         <p class="text-sm text-gray-500">
             Workspace: {{ current_workspace()?->name ?? 'No workspace' }}

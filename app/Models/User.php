@@ -83,4 +83,9 @@ class User extends Authenticatable
             ->withPivot(['role', 'joined_at'])
             ->withTimestamps();
     }
+
+    public function sentInvitations(): HasMany
+    {
+        return $this->hasMany(Invitation::class, 'invited_by');
+    }
 }

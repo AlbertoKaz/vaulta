@@ -22,9 +22,38 @@
                 <flux:sidebar.collapse class="lg:hidden" />
             </flux:sidebar.header>
 
-            <div class="px-3 pb-3">
-                <livewire:workspace-switcher />
-            </div>
+            @php
+                $workspaces = auth()->check()
+                    ? auth()->user()->workspaces()->orderBy('name')->get()
+                    : collect();
+            @endphp
+
+            @if($workspaces->isNotEmpty())
+                <div class="space-y-2">
+                    <p class="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                        Workspace
+                    </p>
+
+                    <div class="space-y-1">
+                        @foreach($workspaces as $workspace)
+                            <form method="POST" action="{{ route('workspaces.switch') }}">
+                                @csrf
+                                <input type="hidden" name="workspace_id" value="{{ $workspace->id }}">
+
+                                <button
+                                    type="submit"
+                                    class="w-full rounded-lg px-3 py-2 text-left text-sm transition
+                            {{ current_workspace()?->id === $workspace->id
+                                ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
+                                : 'bg-white text-zinc-800 hover:bg-zinc-100 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:bg-zinc-700' }}"
+                                >
+                                    {{ $workspace->name }}
+                                </button>
+                            </form>
+                        @endforeach
+                    </div>
+                </div>
+            @endif
 
             <flux:sidebar.nav>
                 <flux:sidebar.group :heading="__('Platform')" class="grid">

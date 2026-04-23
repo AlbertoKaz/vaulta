@@ -1,17 +1,19 @@
 <?php
 
 use App\Models\Collection;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
 use Livewire\Component;
 
-new class extends Component
-{
+new class extends Component {
     public string $name = '';
     public ?int $editingId = null;
     public string $editingName = '';
 
     public function create(): void
     {
+        Gate::authorize('create', Collection::class);
+
         $this->validate([
             'name' => 'required|string|max:255',
         ]);
@@ -31,7 +33,7 @@ new class extends Component
             ->where('slug', $slug)
             ->exists()
         ) {
-            $slug = "$baseSlug-$counter";
+            $slug = "{$baseSlug}-{$counter}";
             $counter++;
         }
 
@@ -61,6 +63,8 @@ new class extends Component
             return;
         }
 
+        Gate::authorize('update', $collection);
+
         $this->editingId = $collection->id;
         $this->editingName = $collection->name;
     }
@@ -86,6 +90,8 @@ new class extends Component
             return;
         }
 
+        Gate::authorize('update', $collection);
+
         $collection->update([
             'name' => $this->editingName,
         ]);
@@ -109,6 +115,8 @@ new class extends Component
         if (! $collection) {
             return;
         }
+
+        Gate::authorize('delete', $collection);
 
         $collection->delete();
     }

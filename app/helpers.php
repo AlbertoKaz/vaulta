@@ -2,21 +2,12 @@
 
 use App\Models\Workspace;
 
-function current_workspace(): ?Workspace
-{
-    $user = auth()->user();
-
-    return $user?->currentWorkspace();
-
-}
-
-
-if (!function_exists('current_workspace')) {
+if (! function_exists('current_workspace')) {
     function current_workspace(): ?Workspace
     {
         $user = auth()->user();
 
-        if (!$user) {
+        if (! $user) {
             return null;
         }
 

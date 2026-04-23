@@ -4,6 +4,7 @@ use App\Enums\ItemCondition;
 use App\Enums\ItemStatus;
 use App\Models\Collection;
 use App\Models\Item;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
 use Livewire\Attributes\Locked;
 use Livewire\Component;
@@ -45,11 +46,15 @@ new class extends Component {
             404
         );
 
+        Gate::authorize('view', $collection);
+
         $this->collection = $collection;
     }
 
     public function create(): void
     {
+        Gate::authorize('create', Item::class);
+
         $this->validate([
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
@@ -125,6 +130,8 @@ new class extends Component {
             return;
         }
 
+        Gate::authorize('update', $item);
+
         $this->editingId = $item->id;
         $this->editingName = $item->name;
         $this->editingDescription = $item->description;
@@ -156,8 +163,8 @@ new class extends Component {
         $this->validate([
             'editingName' => 'required|string|max:255',
             'editingDescription' => 'nullable|string',
-            'editingCondition' => 'nullable|string|max:255',
-            'editingStatus' => 'nullable|string|max:255',
+            'editingCondition' => 'required|string|max:255',
+            'editingStatus' => 'required|string|max:255',
             'editingLocation' => 'nullable|string|max:255',
             'editingPurchasePrice' => 'nullable|numeric|min:0',
             'editingEstimatedValue' => 'nullable|numeric|min:0',
@@ -178,6 +185,8 @@ new class extends Component {
         if (!$item) {
             return;
         }
+
+        Gate::authorize('update', $item);
 
         $item->update([
             'name' => $this->editingName,
@@ -209,6 +218,8 @@ new class extends Component {
             return;
         }
 
+        Gate::authorize('delete', $item);
+
         $item->delete();
     }
 
@@ -216,11 +227,12 @@ new class extends Component {
     {
         $workspace = current_workspace();
 
-        if (! $workspace) {
+        if (!$workspace) {
             return collect();
         }
 
-        $query = $this->collection->items();
+        $query = $this->collection->items()
+            ->where('workspace_id', current_workspace()?->id);
 
         if ($this->filterStatus) {
             $query->where('status', $this->filterStatus);

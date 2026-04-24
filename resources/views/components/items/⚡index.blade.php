@@ -223,6 +223,17 @@ new class extends Component {
         $item->delete();
     }
 
+    // CSV Export
+    public function getExportUrlProperty(): string
+    {
+        return route('exports.items', array_filter([
+            'collection_id' => $this->collection->id,
+            'status' => $this->filterStatus,
+            'condition' => $this->filterCondition,
+        ]));
+    }
+
+    // Salida info
     public function getItemsProperty()
     {
         $workspace = current_workspace();
@@ -334,6 +345,13 @@ new class extends Component {
 
     <div class="space-y-3">
         <div class="flex gap-3">
+            <a
+                href="{{ $this->exportUrl }}"
+                class="rounded-lg border px-4 py-2 text-sm font-medium hover:bg-zinc-100 dark:hover:bg-zinc-800"
+            >
+                Export filtered CSV
+            </a>
+
             <select wire:model.change.live="filterStatus" class="border rounded px-3 py-2">
                 <option value="">All status</option>
 

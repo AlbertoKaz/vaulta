@@ -184,6 +184,13 @@ new class extends Component {
                     </div>
 
                     <div class="flex gap-2">
+                        <a
+                            href="{{ route('exports.items', ['collection_id' => $collection->id]) }}"
+                            class="rounded-lg border px-3 py-2 text-sm font-medium hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                        >
+                            Export CSV
+                        </a>
+
                         <button wire:click="edit({{ $collection->id }})" class="text-blue-500 text-sm">
                             Edit
                         </button>

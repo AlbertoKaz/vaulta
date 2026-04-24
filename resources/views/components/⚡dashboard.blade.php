@@ -132,13 +132,22 @@ new class extends Component
 ?>
 
 <div class="max-w-4xl mx-auto p-4 space-y-6">
-    <div>
-        <h1 class="text-3xl font-bold">
-            Dashboard
-        </h1>
-        <p class="text-sm text-gray-500">
-            Workspace: {{ $this->workspace?->name ?? 'No workspace' }}
-        </p>
+    <div class="flex items-start justify-between gap-4">
+        <div>
+            <h1 class="text-3xl font-bold">
+                Dashboard
+            </h1>
+            <p class="text-sm text-gray-500">
+                Workspace: {{ $this->workspace?->name ?? 'No workspace' }}
+            </p>
+        </div>
+
+        <a
+            href="{{ route('exports.items') }}"
+            class="rounded-lg border px-4 py-2 text-sm font-medium hover:bg-zinc-100 dark:hover:bg-zinc-800"
+        >
+            Export CSV
+        </a>
     </div>
 
     {{-- Primary KPIs --}}

@@ -46,4 +46,9 @@ class Workspace extends Model
     {
         return $this->hasMany(Invitation::class);
     }
+
+    public function tags(): HasMany
+    {
+        return $this->hasMany(Tag::class);
+    }
 }

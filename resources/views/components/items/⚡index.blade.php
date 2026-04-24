@@ -4,6 +4,7 @@ use App\Enums\ItemCondition;
 use App\Enums\ItemStatus;
 use App\Models\Collection;
 use App\Models\Item;
+use App\Models\Tag;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
 use Livewire\Attributes\Locked;
@@ -21,6 +22,9 @@ new class extends Component {
     public ?string $notes = null;
     public ?string $purchase_price = null;
     public ?string $estimated_value = null;
+
+    public string $tagName = '';
+    public ?int $managingTagsFor = null;
 
     public ?string $filterStatus = null;
     public ?string $filterCondition = null;
@@ -223,6 +227,127 @@ new class extends Component {
         $item->delete();
     }
 
+    public function createTag(): void
+    {
+        $this->validate([
+            'tagName' => 'required|string|max:20',
+        ]);
+
+        $workspace = current_workspace();
+
+        if (! $workspace) {
+            return;
+        }
+
+        $name = trim($this->tagName);
+        $baseSlug = Str::slug($name);
+        $slug = $baseSlug;
+        $counter = 2;
+
+        while (
+        Tag::where('workspace_id', $workspace->id)
+            ->where('slug', $slug)
+            ->exists()
+        ) {
+            $slug = "{$baseSlug}-{$counter}";
+            $counter++;
+        }
+
+        Tag::create([
+            'workspace_id' => $workspace->id,
+            'name' => $name,
+            'slug' => $slug,
+        ]);
+
+        $this->reset('tagName');
+
+        session()->flash('success', 'Tag created successfully.');
+    }
+
+    public function attachTag(int $itemId, int $tagId): void
+    {
+        $workspace = current_workspace();
+
+        if (! $workspace) {
+            return;
+        }
+
+        $item = $this->collection->items()
+            ->where('id', $itemId)
+            ->first();
+
+        if (! $item) {
+            return;
+        }
+
+        $tag = Tag::where('workspace_id', $workspace->id)
+            ->where('id', $tagId)
+            ->first();
+
+        if (! $tag) {
+            return;
+        }
+
+        $item->tags()->syncWithoutDetaching([$tag->id]);
+    }
+
+    public function detachTag(int $itemId, int $tagId): void
+    {
+        $workspace = current_workspace();
+
+        if (! $workspace) {
+            return;
+        }
+
+        $item = $this->collection->items()
+            ->where('id', $itemId)
+            ->first();
+
+        if (! $item) {
+            return;
+        }
+
+        $item->tags()->detach($tagId);
+    }
+
+    public function deleteTag(int $tagId): void
+    {
+        $workspace = current_workspace();
+
+        if (! $workspace) {
+            return;
+        }
+
+        $tag = $workspace->tags()->where('id', $tagId)->first();
+
+        if (! $tag) {
+            return;
+        }
+
+        // elimina también relaciones pivot automáticamente por cascade
+        $tag->delete();
+    }
+
+    public function toggleTagManager(int $itemId): void
+    {
+        $this->managingTagsFor = $this->managingTagsFor === $itemId
+            ? null
+            : $itemId;
+    }
+
+    public function getTagsProperty()
+    {
+        $workspace = current_workspace();
+
+        if (! $workspace) {
+            return collect();
+        }
+
+        return $workspace->tags()
+            ->orderBy('name')
+            ->get();
+    }
+
     // CSV Export
     public function getExportUrlProperty(): string
     {
@@ -242,7 +367,7 @@ new class extends Component {
             return collect();
         }
 
-        $query = $this->collection->items()
+        $query = $this->collection->items()->with('tags')
             ->where('workspace_id', current_workspace()?->id);
 
         if ($this->filterStatus) {
@@ -342,6 +467,49 @@ new class extends Component {
             Create item
         </button>
     </form>
+
+    <div class="border rounded-xl p-4 space-y-4">
+        <div>
+            <h2 class="text-lg font-semibold">Tags</h2>
+            <p class="text-sm text-gray-500">
+                Create reusable tags for this workspace.
+            </p>
+        </div>
+
+        <form wire:submit="createTag" class="flex gap-2">
+            <input
+                type="text"
+                wire:model="tagName"
+                placeholder="Tag name"
+                class="w-full rounded-lg border px-3 py-2 text-sm"
+            >
+
+            <button
+                type="submit"
+                class="rounded-lg border px-4 py-2 text-sm font-medium"
+            >
+                Add tag
+            </button>
+        </form>
+
+
+        @error('tagName')
+        <p class="text-sm text-red-500">{{ $message }}</p>
+        @enderror
+
+        <div class="flex flex-wrap gap-2">
+            @forelse ($this->tags as $tag)
+                <button
+                    wire:click="deleteTag({{ $tag->id }})"
+                    class="rounded-full border px-3 py-1 text-xs text-gray-400 hover:bg-zinc-800"
+                >
+                    {{ $tag->name }} ×
+                </button>
+            @empty
+                <p class="text-sm text-gray-500">No tags yet.</p>
+            @endforelse
+        </div>
+    </div>
 
     <div class="space-y-3">
         <div class="flex gap-3">
@@ -507,10 +675,51 @@ new class extends Component {
                             </button>
                         </div>
                     </div>
+
+                <div class="mt-3 space-y-2">
+                        {{-- Assigned tags --}}
+                        <div class="flex flex-wrap items-center gap-2">
+                            @foreach ($item->tags as $tag)
+                                <button
+                                    type="button"
+                                    wire:click="detachTag({{ $item->id }}, {{ $tag->id }})"
+                                    class="rounded-full border border-zinc-600 px-2 py-1 text-xs text-zinc-300 hover:bg-zinc-800 cursor-pointer"
+                                >
+                                    {{ $tag->name }} ×
+                                </button>
+                            @endforeach
+
+                            <button
+                                type="button"
+                                wire:click="toggleTagManager({{ $item->id }})"
+                                class="text-xs text-blue-400 hover:underline"
+                            >
+                                {{ $item->tags->isNotEmpty() ? '+ Add tag' : 'Manage tags' }}
+                            </button>
+                        </div>
+
+                        {{-- Available tags --}}
+                        @if ($managingTagsFor === $item->id && $this->tags->isNotEmpty())
+                            <div class="flex flex-wrap gap-2">
+                                @foreach ($this->tags as $tag)
+                                    @unless ($item->tags->contains('id', $tag->id))
+                                        <button
+                                            type="button"
+                                            wire:click="attachTag({{ $item->id }}, {{ $tag->id }})"
+                                            class="rounded-full border border-zinc-700 px-2 py-1 text-xs text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200"
+                                        >
+                                            + {{ $tag->name }}
+                                        </button>
+                                    @endunless
+                                @endforeach
+                            </div>
+                        @endif
+                    </div>
+            </div>
                 @endif
             </div>
         @empty
             <p class="text-sm text-gray-500">No items yet.</p>
         @endforelse
     </div>
-</div>
+

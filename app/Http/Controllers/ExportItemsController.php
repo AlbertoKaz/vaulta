@@ -20,6 +20,8 @@ class ExportItemsController extends Controller
             'status' => ['nullable', Rule::enum(ItemStatus::class)],
             'condition' => ['nullable', Rule::enum(ItemCondition::class)],
             'collection_id' => ['nullable', 'integer'],
+            'tag_ids' => ['nullable', 'array'],
+            'tag_ids.*' => ['integer'],
         ]);
 
         if (! empty($validated['collection_id'])) {
@@ -29,6 +31,14 @@ class ExportItemsController extends Controller
                     ->exists(),
                 404
             );
+        }
+
+        if (! empty($validated['tag_ids'])) {
+            $validTagCount = $workspace->tags()
+                ->whereIn('id', $validated['tag_ids'])
+                ->count();
+
+            abort_unless($validTagCount === count($validated['tag_ids']), 404);
         }
 
         $filename = 'vaulta-items-' . now()->format('Y-m-d-His') . '.csv';
@@ -46,11 +56,12 @@ class ExportItemsController extends Controller
                 'Purchase price',
                 'Estimated value',
                 'Location',
+                'Tags',
                 'Created at',
             ]);
 
             $query = $workspace->items()
-                ->with('collection')
+                ->with(['collection', 'tags'])
                 ->orderBy('name');
 
             if (! empty($validated['status'])) {
@@ -65,6 +76,12 @@ class ExportItemsController extends Controller
                 $query->where('collection_id', $validated['collection_id']);
             }
 
+            if (! empty($validated['tag_ids'])) {
+                $query->whereHas('tags', function ($q) use ($validated) {
+                    $q->whereIn('tags.id', $validated['tag_ids']);
+                });
+            }
+
             $query->chunk(200, function ($items) use ($handle) {
                 foreach ($items as $item) {
                     fputcsv($handle, [
@@ -75,6 +92,7 @@ class ExportItemsController extends Controller
                         $item->purchase_price,
                         $item->estimated_value,
                         $item->location,
+                        $item->tags->pluck('name')->join(', '),
                         optional($item->created_at)->format('Y-m-d H:i:s'),
                     ]);
                 }

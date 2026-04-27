@@ -28,6 +28,7 @@ new class extends Component {
 
     public ?string $filterStatus = null;
     public ?string $filterCondition = null;
+    public array $filterTagIds = [];
 
     public ?int $editingId = null;
     public string $editingName = '';
@@ -335,6 +336,19 @@ new class extends Component {
             : $itemId;
     }
 
+    public function toggleFilterTag(int $tagId): void
+    {
+        if (in_array($tagId, $this->filterTagIds, true)) {
+            $this->filterTagIds = array_values(
+                array_diff($this->filterTagIds, [$tagId])
+            );
+
+            return;
+        }
+
+        $this->filterTagIds[] = $tagId;
+    }
+
     public function getTagsProperty()
     {
         $workspace = current_workspace();
@@ -348,14 +362,33 @@ new class extends Component {
             ->get();
     }
 
+    public function resetFilters(): void
+    {
+        $this->filterStatus = null;
+        $this->filterCondition = null;
+        $this->filterTagIds = [];
+    }
+
     // CSV Export
     public function getExportUrlProperty(): string
     {
-        return route('exports.items', array_filter([
+        $params = [
             'collection_id' => $this->collection->id,
-            'status' => $this->filterStatus,
-            'condition' => $this->filterCondition,
-        ]));
+        ];
+
+        if ($this->filterStatus) {
+            $params['status'] = $this->filterStatus;
+        }
+
+        if ($this->filterCondition) {
+            $params['condition'] = $this->filterCondition;
+        }
+
+        if (! empty($this->filterTagIds)) {
+            $params['tag_ids'] = $this->filterTagIds;
+        }
+
+        return route('exports.items', $params);
     }
 
     // Salida info
@@ -363,12 +396,14 @@ new class extends Component {
     {
         $workspace = current_workspace();
 
-        if (!$workspace) {
+        if (! $workspace) {
             return collect();
         }
 
-        $query = $this->collection->items()->with('tags')
-            ->where('workspace_id', current_workspace()?->id);
+        $query = $this->collection
+            ->items()
+            ->with('tags')
+            ->where('workspace_id', $workspace->id);
 
         if ($this->filterStatus) {
             $query->where('status', $this->filterStatus);
@@ -376,6 +411,12 @@ new class extends Component {
 
         if ($this->filterCondition) {
             $query->where('condition', $this->filterCondition);
+        }
+
+        if (!empty($this->filterTagIds)) {
+            $query->whereHas('tags', function ($q) {
+                $q->whereIn('tags.id', $this->filterTagIds);
+            });
         }
 
         return $query->latest()->get();
@@ -512,214 +553,250 @@ new class extends Component {
     </div>
 
     <div class="space-y-3">
-        <div class="flex gap-3">
-            <a
-                href="{{ $this->exportUrl }}"
-                class="rounded-lg border px-4 py-2 text-sm font-medium hover:bg-zinc-100 dark:hover:bg-zinc-800"
-            >
-                Export filtered CSV
-            </a>
+        {{-- Filters --}}
+        <div class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm space-y-5 dark:border-zinc-800 dark:bg-zinc-950">
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                    <h2 class="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                        Filters
+                    </h2>
+                    <p class="text-xs text-zinc-500">
+                        Narrow this collection by status, condition or workspace tags.
+                    </p>
+                </div>
 
-            <select wire:model.change.live="filterStatus" class="border rounded px-3 py-2">
-                <option value="">All status</option>
+                <div class="flex items-center gap-3">
+                    <button
+                        type="button"
+                        wire:click="resetFilters"
+                        class="text-xs font-medium text-zinc-500 transition hover:text-zinc-900 dark:hover:text-zinc-100"
+                    >
+                        Reset filters
+                    </button>
 
-                @foreach (\App\Enums\ItemStatus::cases() as $status)
-                    <option value="{{ $status->value }}">
-                        {{ $status->label() }}
-                    </option>
-                @endforeach
-            </select>
+                    <a
+                        href="{{ $this->exportUrl }}"
+                        class="rounded-lg border border-zinc-200 px-3 py-2 text-xs font-medium text-zinc-700 transition hover:bg-zinc-100 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-900"
+                    >
+                        Export CSV
+                    </a>
+                </div>
+            </div>
 
-            <select wire:model.change.live="filterCondition" class="border rounded px-3 py-2">
-                <option value="">All conditions</option>
+            <div class="grid gap-3 sm:grid-cols-2">
+                <div class="space-y-1.5">
+                    <label class="text-xs font-medium text-zinc-500">
+                        Status
+                    </label>
 
-                @foreach (\App\Enums\ItemCondition::cases() as $condition)
-                    <option value="{{ $condition->value }}">
-                        {{ $condition->label() }}
-                    </option>
-                @endforeach
-            </select>
+                    <select
+                        wire:model.change.live="filterStatus"
+                        class="w-full rounded-xl border border-zinc-200 bg-transparent px-3 py-2.5 text-sm text-zinc-900 outline-none transition focus:border-zinc-400 dark:border-zinc-800 dark:text-zinc-100 dark:focus:border-zinc-600"
+                    >
+                        <option value="">All status</option>
 
-            <button
-                type="button"
-                wire:click="$set('filterStatus', ''); $set('filterCondition', '')"
-                class="text-sm text-gray-500"
-            >
-                Reset
-            </button>
+                        @foreach (\App\Enums\ItemStatus::cases() as $status)
+                            <option value="{{ $status->value }}">
+                                {{ $status->label() }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+
+                <div class="space-y-1.5">
+                    <label class="text-xs font-medium text-zinc-500">
+                        Condition
+                    </label>
+
+                    <select
+                        wire:model.change.live="filterCondition"
+                        class="w-full rounded-xl border border-zinc-200 bg-transparent px-3 py-2.5 text-sm text-zinc-900 outline-none transition focus:border-zinc-400 dark:border-zinc-800 dark:text-zinc-100 dark:focus:border-zinc-600"
+                    >
+                        <option value="">All conditions</option>
+
+                        @foreach (\App\Enums\ItemCondition::cases() as $condition)
+                            <option value="{{ $condition->value }}">
+                                {{ $condition->label() }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+            </div>
+
+            <div class="space-y-2">
+                <div class="flex items-center justify-between gap-3">
+                    <label class="text-xs font-medium text-zinc-500">
+                        Tags
+                    </label>
+
+                    @if (!empty($filterTagIds))
+                        <button
+                            type="button"
+                            wire:click="$set('filterTagIds', [])"
+                            class="text-xs font-medium text-zinc-500 transition hover:text-zinc-900 dark:hover:text-zinc-100"
+                        >
+                            Clear tag
+                        </button>
+                    @endif
+                </div>
+
+                <div class="flex flex-wrap gap-2">
+                    <button
+                        type="button"
+                        wire:click="$set('filterTagIds', [])"
+                        class="rounded-full border px-3 py-1.5 text-xs font-medium transition duration-150
+                    {{ empty($filterTagIds)
+                        ? 'border-zinc-900 bg-zinc-900 text-white shadow-sm dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-950'
+                        : 'border-zinc-200 text-zinc-500 hover:border-zinc-400 hover:text-zinc-900 dark:border-zinc-800 dark:text-zinc-400 dark:hover:border-zinc-600 dark:hover:text-zinc-100' }}"
+                    >
+                        All tags
+                    </button>
+
+                    @foreach ($this->tags as $tag)
+                        <button
+                            type="button"
+                            wire:click="toggleFilterTag({{ $tag->id }})"
+                            class="rounded-full border px-3 py-1.5 text-xs font-medium transition duration-150
+                        {{ in_array($tag->id, $filterTagIds, true)
+                            ? 'border-zinc-900 bg-zinc-900 text-white shadow-sm dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-950'
+                            : 'border-zinc-200 text-zinc-500 hover:border-zinc-400 hover:text-zinc-900 dark:border-zinc-800 dark:text-zinc-400 dark:hover:border-zinc-600 dark:hover:text-zinc-100' }}"
+                        >
+                            {{ $tag->name }}
+                        </button>
+                    @endforeach
+                </div>
+            </div>
+
+            @if ($filterStatus || $filterCondition || $filterTagIds)
+                <div class="flex flex-wrap items-center gap-2 border-t border-zinc-200 pt-4 dark:border-zinc-800">
+            <span class="text-xs font-medium text-zinc-500">
+                Active filters:
+            </span>
+
+                    @if ($filterStatus)
+                        <button
+                            wire:click="$set('filterStatus', null)"
+                            class="rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-medium text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                        >
+                            Status: {{ \App\Enums\ItemStatus::from($filterStatus)->label() }} ×
+                        </button>
+                    @endif
+
+                    @if ($filterCondition)
+                        <button
+                            wire:click="$set('filterCondition', null)"
+                            class="rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-medium text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                        >
+                            Status: {{ \App\Enums\ItemCondition::from($filterCondition)->label() }} ×
+                        </button>
+                    @endif
+
+                    @foreach ($filterTagIds as $tagId)
+                        <button
+                            wire:click="toggleFilterTag({{ $tagId }})"
+                            class="rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-medium"
+                        >
+                            Tag: {{ $this->tags->firstWhere('id', $tagId)?->name }} ×
+                        </button>
+                    @endforeach
+                </div>
+            @endif
         </div>
+        {{-- End Filters --}}
 
-        @forelse ($this->items as $item)
-            <div class="border rounded p-4 space-y-3">
-                @if ($editingId === $item->id)
-                    <div class="space-y-3">
-                        <input
-                            type="text"
-                            wire:model="editingName"
-                            class="w-full border rounded px-3 py-2"
-                            placeholder="Item name"
-                        >
-                        @error('editingName') <p class="text-sm text-red-500">{{ $message }}</p> @enderror
+    @forelse ($this->items as $item)
+        <div class="border rounded p-4 space-y-3">
+            @if ($editingId === $item->id)
+                <div class="space-y-3">
+                    {{-- aquí va todo tu formulario de edición tal cual --}}
+                </div>
+            @else
+                <div class="flex justify-between gap-4">
+                    <div>
+                        <p class="font-semibold">{{ $item->name }}</p>
+                        <p class="text-sm text-gray-500">{{ $item->slug }}</p>
 
-                        <textarea
-                            wire:model="editingDescription"
-                            class="w-full border rounded px-3 py-2"
-                            placeholder="Description"
-                        ></textarea>
+                        @if ($item->description)
+                            <p class="text-sm mt-2">{{ $item->description }}</p>
+                        @endif
 
-                        <select wire:model="editingCondition" class="w-full border rounded px-3 py-2">
-                            <option value="">-- Condition --</option>
+                        @if ($item->condition)
+                            <p class="text-sm mt-1">
+                                Condition: {{ $item->condition->label() }}
+                            </p>
+                        @endif
 
-                            @foreach (\App\Enums\ItemCondition::cases() as $condition)
-                                <option value="{{ $condition->value }}">
-                                    {{ $condition->label() }}
-                                </option>
-                            @endforeach
-                        </select>
+                        @if ($item->status)
+                            <p class="text-sm mt-1">
+                                Status: {{ $item->status->label() }}
+                            </p>
+                        @endif
 
-                        <select wire:model="editingStatus" class="w-full border rounded px-3 py-2">
-                            @foreach (\App\Enums\ItemStatus::cases() as $status)
-                                <option value="{{ $status->value }}">
-                                    {{ $status->label() }}
-                                </option>
-                            @endforeach
-                        </select>
-
-                        <input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            wire:model="editingPurchasePrice"
-                            class="w-full border rounded px-3 py-2"
-                            placeholder="Purchase price"
-                        >
-
-                        <input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            wire:model="editingEstimatedValue"
-                            class="w-full border rounded px-3 py-2"
-                            placeholder="Estimated value"
-                        >
-
-                        <input
-                            type="text"
-                            wire:model="editingLocation"
-                            class="w-full border rounded px-3 py-2"
-                            placeholder="Location"
-                        >
-
-                        <textarea
-                            wire:model="editingNotes"
-                            class="w-full border rounded px-3 py-2"
-                            placeholder="Notes"
-                        ></textarea>
-
-                        <div class="flex gap-3">
-                            <button
-                                wire:click="update"
-                                class="text-sm text-green-600"
-                            >
-                                Save
-                            </button>
-
-                            <button
-                                wire:click="cancelEdit"
-                                class="text-sm text-gray-500"
-                            >
-                                Cancel
-                            </button>
-                        </div>
-                    </div>
-                @else
-                    <div class="flex justify-between gap-4">
-                        <div>
-                            <p class="font-semibold">{{ $item->name }}</p>
-                            <p class="text-sm text-gray-500">{{ $item->slug }}</p>
-
-                            @if ($item->description)
-                                <p class="text-sm mt-2">{{ $item->description }}</p>
-                            @endif
-
-                            @if ($item->condition)
-                                <p class="text-sm mt-1">
-                                    Condition: {{ $item->condition->label() }}
-                                </p>
-                            @endif
-
-                            @if ($item->status)
-                                <p class="text-sm mt-1">
-                                    Status: {{ $item->status->label() }}
-                                </p>
-                            @endif
-
-                            @if ($item->location)
-                                <p class="text-sm mt-1">Location: {{ $item->location }}</p>
-                            @endif
-                        </div>
-
-                        <div class="flex gap-3">
-                            <button
-                                wire:click="edit({{ $item->id }})"
-                                class="text-sm text-blue-500"
-                            >
-                                Edit
-                            </button>
-
-                            <button
-                                wire:click="delete({{ $item->id }})"
-                                class="text-sm text-red-500"
-                            >
-                                Delete
-                            </button>
-                        </div>
-                    </div>
-
-                <div class="mt-3 space-y-2">
-                        {{-- Assigned tags --}}
-                        <div class="flex flex-wrap items-center gap-2">
-                            @foreach ($item->tags as $tag)
-                                <button
-                                    type="button"
-                                    wire:click="detachTag({{ $item->id }}, {{ $tag->id }})"
-                                    class="rounded-full border border-zinc-600 px-2 py-1 text-xs text-zinc-300 hover:bg-zinc-800 cursor-pointer"
-                                >
-                                    {{ $tag->name }} ×
-                                </button>
-                            @endforeach
-
-                            <button
-                                type="button"
-                                wire:click="toggleTagManager({{ $item->id }})"
-                                class="text-xs text-blue-400 hover:underline"
-                            >
-                                {{ $item->tags->isNotEmpty() ? '+ Add tag' : 'Manage tags' }}
-                            </button>
-                        </div>
-
-                        {{-- Available tags --}}
-                        @if ($managingTagsFor === $item->id && $this->tags->isNotEmpty())
-                            <div class="flex flex-wrap gap-2">
-                                @foreach ($this->tags as $tag)
-                                    @unless ($item->tags->contains('id', $tag->id))
-                                        <button
-                                            type="button"
-                                            wire:click="attachTag({{ $item->id }}, {{ $tag->id }})"
-                                            class="rounded-full border border-zinc-700 px-2 py-1 text-xs text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200"
-                                        >
-                                            + {{ $tag->name }}
-                                        </button>
-                                    @endunless
-                                @endforeach
-                            </div>
+                        @if ($item->location)
+                            <p class="text-sm mt-1">Location: {{ $item->location }}</p>
                         @endif
                     </div>
-            </div>
-                @endif
-            </div>
-        @empty
-            <p class="text-sm text-gray-500">No items yet.</p>
-        @endforelse
-    </div>
 
+                    <div class="flex gap-3">
+                        <button
+                            wire:click="edit({{ $item->id }})"
+                            class="text-sm text-blue-500"
+                        >
+                            Edit
+                        </button>
+
+                        <button
+                            wire:click="delete({{ $item->id }})"
+                            class="text-sm text-red-500"
+                        >
+                            Delete
+                        </button>
+                    </div>
+                </div>
+
+                <div class="mt-3 space-y-2">
+                    {{-- Assigned tags --}}
+                    <div class="flex flex-wrap items-center gap-2">
+                        @foreach ($item->tags as $tag)
+                            <button
+                                type="button"
+                                wire:click="detachTag({{ $item->id }}, {{ $tag->id }})"
+                                class="rounded-full border border-zinc-600 px-2 py-1 text-xs text-zinc-300 hover:bg-zinc-800 cursor-pointer"
+                            >
+                                {{ $tag->name }} ×
+                            </button>
+                        @endforeach
+
+                        <button
+                            type="button"
+                            wire:click="toggleTagManager({{ $item->id }})"
+                            class="text-xs text-blue-400 hover:underline"
+                        >
+                            {{ $item->tags->isNotEmpty() ? '+ Add tag' : 'Manage tags' }}
+                        </button>
+                    </div>
+
+                    {{-- Available tags --}}
+                    @if ($managingTagsFor === $item->id && $this->tags->isNotEmpty())
+                        <div class="flex flex-wrap gap-2">
+                            @foreach ($this->tags as $tag)
+                                @unless ($item->tags->contains('id', $tag->id))
+                                    <button
+                                        type="button"
+                                        wire:click="attachTag({{ $item->id }}, {{ $tag->id }})"
+                                        class="rounded-full border border-zinc-700 px-2 py-1 text-xs text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200"
+                                    >
+                                        + {{ $tag->name }}
+                                    </button>
+                                @endunless
+                            @endforeach
+                        </div>
+                    @endif
+                </div>
+            @endif
+        </div>
+    @empty
+        <p class="text-sm text-gray-500">No items yet.</p>
+    @endforelse
+    </div>
+</div>

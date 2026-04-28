@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Route;
 Route::view('/', 'welcome')->name('home');
 
 Route::get('/invitations/accept/{token}', InvitationAcceptController::class)
-    ->middleware('auth')
+    ->middleware(['auth', 'signed'])
     ->name('invitations.accept');
 
 Route::post('/workspaces/switch', SwitchWorkspaceController::class)

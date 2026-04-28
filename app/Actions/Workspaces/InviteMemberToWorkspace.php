@@ -6,6 +6,9 @@ use App\Enums\WorkspaceRole;
 use App\Models\Invitation;
 use App\Models\User;
 use App\Models\Workspace;
+use App\Notifications\WorkspaceInvitationNotification;
+use DomainException;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Str;
 
 class InviteMemberToWorkspace
@@ -23,7 +26,7 @@ class InviteMemberToWorkspace
             ->exists();
 
         if ($alreadyMember) {
-            throw new \DomainException('Ese usuario ya pertenece al workspace.');
+            throw new DomainException('Ese usuario ya pertenece al workspace.');
         }
 
         $pendingInvitation = Invitation::query()
@@ -37,10 +40,10 @@ class InviteMemberToWorkspace
             ->first();
 
         if ($pendingInvitation) {
-            throw new \DomainException('Ya existe una invitación pendiente para ese email.');
+            throw new DomainException('Ya existe una invitación pendiente para ese email.');
         }
 
-        return Invitation::create([
+        $invitation = Invitation::create([
             'workspace_id' => $workspace->id,
             'email' => $email,
             'role' => $role,
@@ -48,5 +51,10 @@ class InviteMemberToWorkspace
             'invited_by' => $inviter->id,
             'expires_at' => now()->addDays(7),
         ]);
+
+        Notification::route('mail', $email)
+            ->notify(new WorkspaceInvitationNotification($invitation));
+
+        return $invitation;
     }
 }

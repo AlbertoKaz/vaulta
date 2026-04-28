@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Actions\Workspaces\AcceptInvitation;
 use App\Models\Invitation;
+use DomainException;
 use Illuminate\Http\Request;
 
 class InvitationAcceptController extends Controller
@@ -16,9 +17,9 @@ class InvitationAcceptController extends Controller
 
         try {
             $acceptInvitation->handle($invitation, $request->user());
-        } catch (\DomainException $e) {
+        } catch (DomainException $e) {
             return redirect()
-                ->route('members.index')
+                ->route('dashboard')
                 ->with('error', $e->getMessage());
         }
 

@@ -60,6 +60,12 @@
                     <flux:sidebar.item icon="home" :href="route('dashboard')" :current="request()->routeIs('dashboard')" wire:navigate>
                         {{ __('Dashboard') }}
                     </flux:sidebar.item>
+                    <flux:sidebar.item :href="route('collections.index')" :current="request()->routeIs('collections.index')" wire:navigate>
+                        {{ __('Collections') }}
+                    </flux:sidebar.item>
+                    <flux:sidebar.item :href="route('members.index')" :current="request()->routeIs('members.index')" wire:navigate>
+                        {{ __('Members') }}
+                    </flux:sidebar.item>
                 </flux:sidebar.group>
             </flux:sidebar.nav>
 

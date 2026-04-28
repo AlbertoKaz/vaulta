@@ -62,6 +62,30 @@ new class extends Component {
             ->get();
     }
 
+    public function cancelInvitation(int $invitationId): void
+    {
+        $workspace = current_workspace();
+
+        if (! $workspace) {
+            return;
+        }
+
+        Gate::authorize('inviteMembers', $workspace);
+
+        $invitation = $workspace->invitations()
+            ->where('id', $invitationId)
+            ->whereNull('accepted_at')
+            ->first();
+
+        if (! $invitation) {
+            return;
+        }
+
+        $invitation->delete();
+
+        session()->flash('success', 'Invitation cancelled successfully.');
+    }
+
     public function getMembersProperty()
     {
         $workspace = current_workspace();
@@ -225,6 +249,29 @@ new class extends Component {
                     <div class="text-xs text-gray-400">
                         Expires: {{ optional($invitation->expires_at)?->format('Y-m-d H:i') ?? 'No expiry' }}
                     </div>
+                </div>
+
+                <div class="rounded-lg border px-4 py-3 flex items-center justify-between gap-4">
+                    <div>
+                        <div class="font-medium">{{ $invitation->email }}</div>
+                        <div class="text-sm text-gray-500">
+                            Role: {{ $invitation->role->value }}
+                        </div>
+                        <div class="text-xs text-gray-400">
+                            Expires: {{ optional($invitation->expires_at)?->format('Y-m-d H:i') ?? 'No expiry' }}
+                        </div>
+                    </div>
+
+                    @can('inviteMembers', current_workspace())
+                        <button
+                            type="button"
+                            wire:click="cancelInvitation({{ $invitation->id }})"
+                            wire:confirm="Are you sure you want to cancel this invitation?"
+                            class="rounded-lg border px-3 py-2 text-sm text-red-600 hover:bg-red-50"
+                        >
+                            Cancel
+                        </button>
+                    @endcan
                 </div>
             @empty
                 <p class="text-sm text-gray-500">No pending invitations.</p>

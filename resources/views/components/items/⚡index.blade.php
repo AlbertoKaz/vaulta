@@ -6,6 +6,7 @@ use App\Models\Collection;
 use App\Models\Item;
 use App\Models\ItemImage;
 use App\Models\Tag;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -238,6 +239,8 @@ new class extends Component {
     }
 
 
+
+
     public function uploadImage(int $itemId): void
     {
         $workspace = current_workspace();
@@ -341,6 +344,47 @@ new class extends Component {
 
         session()->flash('success', 'Cover image updated.');
     }
+
+    public function reorderImages(int $itemId, array $imageIds): void
+    {
+        $workspace = current_workspace();
+
+        if (! $workspace) {
+            return;
+        }
+
+        $item = Item::query()
+            ->where('workspace_id', $workspace->id)
+            ->where('collection_id', $this->collection->id)
+            ->where('id', $itemId)
+            ->first();
+
+        if (! $item) {
+            return;
+        }
+
+        Gate::authorize('update', $item);
+
+        $validImageIds = $item->images()
+            ->whereIn('id', $imageIds)
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        if (count($validImageIds) !== count($imageIds)) {
+            return;
+        }
+
+        DB::transaction(function () use ($imageIds) {
+            foreach (array_values($imageIds) as $index => $imageId) {
+                ItemImage::where('id', $imageId)->update([
+                    'position' => $index + 1,
+                ]);
+            }
+        });
+    }
+
+
 
 
     public function createTag(): void
@@ -476,6 +520,9 @@ new class extends Component {
             ->orderBy('name')
             ->get();
     }
+
+
+
 
     public function resetFilters(): void
     {
@@ -948,39 +995,77 @@ new class extends Component {
                                         Images
                                     </p>
 
-                                    <div class="grid grid-cols-3 gap-2 sm:grid-cols-4">
-                                        @foreach ($item->images as $image)
-                                            <div class="relative overflow-hidden rounded-xl border border-zinc-200 dark:border-zinc-800">
-                                                <img
-                                                    src="{{ asset('storage/' . $image->path) }}"
-                                                    alt="{{ $image->alt_text ?? $item->name }}"
-                                                    class="h-20 w-full object-cover"
-                                                >
+                                    <div class="flex flex-wrap gap-3">
+                                        <div
+                                            x-data="{
+                                                draggedId: null,
 
-                                                <button
-                                                    type="button"
-                                                    wire:click="deleteImage({{ $image->id }})"
-                                                    wire:confirm="Delete this image?"
-                                                    class="absolute right-1.5 top-1.5 rounded-full bg-black/70 px-2 py-0.5 text-xs font-medium text-white hover:bg-black"
-                                                >
-                                                    ×
-                                                </button>
+                                                reorder(itemId) {
+                                                    const ids = Array.from(this.$refs.gallery.querySelectorAll('[data-image-id]'))
+                                                        .map((el) => Number(el.dataset.imageId));
 
-                                                @if ($image->position === 1)
-                                                    <span class="absolute left-1.5 top-1.5 rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-medium text-black ring-2 ring-blue-500">
-                                                Cover
-                                            </span>
-                                                @else
-                                                    <button
-                                                        type="button"
-                                                        wire:click="setCoverImage({{ $image->id }})"
-                                                        class="absolute left-1.5 top-1.5 rounded-full bg-white/80 px-2 py-0.5 text-[10px] font-medium text-black hover:bg-white"
+                                                    $wire.reorderImages(itemId, ids);
+                                                }
+                                            }"
+                                        >
+                                            <div
+                                                x-ref="gallery"
+                                                class="grid grid-cols-3 gap-2 sm:grid-cols-4"
+                                            >
+                                                @foreach ($item->images as $image)
+                                                    <div
+                                                        wire:key="image-{{ $image->id }}"
+                                                        data-image-id="{{ $image->id }}"
+                                                        draggable="true"
+                                                        x-on:dragstart="draggedId = {{ $image->id }}"
+                                                        x-on:dragover.prevent
+                                                        x-on:drop.prevent="
+                                                            const dragged = $refs.gallery.querySelector(`[data-image-id='${draggedId}']`);
+                                                            const target = $event.currentTarget;
+
+                                                            if (! dragged || dragged === target) return;
+
+                                                            const box = target.getBoundingClientRect();
+                                                            const after = $event.clientX > box.left + box.width / 2;
+
+                                                            target.parentNode.insertBefore(dragged, after ? target.nextSibling : target);
+
+                                                            reorder({{ $item->id }});
+                                                        "
+                                                        class="relative h-24 w-24 cursor-grab overflow-hidden rounded-xl border border-zinc-200 active:cursor-grabbing dark:border-zinc-800"
                                                     >
-                                                        Set cover
-                                                    </button>
-                                                @endif
+                                                        <img
+                                                            src="{{ asset('storage/' . $image->path) }}"
+                                                            alt="{{ $image->alt_text ?? $item->name }}"
+                                                            class="h-full w-full object-cover cursor-grab active:cursor-grabbing hover:scale-105 transition"
+                                                        >
+
+                                                        <button
+                                                            type="button"
+                                                            wire:click="deleteImage({{ $image->id }})"
+                                                            wire:confirm="Delete this image?"
+                                                            class="absolute right-1.5 top-1.5 rounded-full bg-black/70 px-2 py-0.5 text-xs font-medium text-white hover:bg-black"
+                                                        >
+                                                            ×
+                                                        </button>
+
+                                                        @if ($image->position === 1)
+                                                            <span class="absolute left-1.5 top-1.5 rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-medium text-black ring-2 ring-blue-500">
+                                                                Cover
+                                                            </span>
+                                                        @else
+                                                            <button
+                                                                type="button"
+                                                                wire:click="setCoverImage({{ $image->id }})"
+                                                                class="absolute left-1.5 top-1.5 rounded-full bg-white/80 px-2 py-0.5 text-[10px] font-medium text-black hover:bg-white"
+                                                            >
+                                                                Set cover
+                                                            </button>
+                                                        @endif
+                                                    </div>
+                                                @endforeach
                                             </div>
-                                        @endforeach
+                                        </div>
                                     </div>
                                 </div>
                             @endif

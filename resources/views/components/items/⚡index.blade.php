@@ -4,13 +4,20 @@ use App\Enums\ItemCondition;
 use App\Enums\ItemStatus;
 use App\Models\Collection;
 use App\Models\Item;
+use App\Models\ItemImage;
 use App\Models\Tag;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Livewire\Attributes\Locked;
 use Livewire\Component;
+use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
+use Livewire\WithFileUploads;
 
 new class extends Component {
+
+    use WithFileUploads;
+
     #[Locked]
     public Collection $collection;
 
@@ -29,6 +36,8 @@ new class extends Component {
     public ?string $filterStatus = null;
     public ?string $filterCondition = null;
     public array $filterTagIds = [];
+
+    public ?TemporaryUploadedFile $image = null;
 
     public ?int $editingId = null;
     public string $editingName = '';
@@ -228,6 +237,112 @@ new class extends Component {
         $item->delete();
     }
 
+
+    public function uploadImage(int $itemId): void
+    {
+        $workspace = current_workspace();
+
+        if (!$workspace) {
+            return;
+        }
+
+        $item = Item::query()
+            ->where('workspace_id', $workspace->id)
+            ->where('collection_id', $this->collection->id)
+            ->where('id', $itemId)
+            ->first();
+
+        if (!$item) {
+            return;
+        }
+
+        Gate::authorize('update', $item);
+
+        $this->validate([
+            'image' => 'required|image|max:2048',
+        ]);
+
+        $path = $this->image->store(
+            "workspaces/{$workspace->id}/items/{$item->id}",
+            'public'
+        );
+
+        $nextPosition = $item->images()->max('position') + 1;
+
+        ItemImage::create([
+            'item_id' => $item->id,
+            'path' => $path,
+            'position' => $nextPosition,
+            'alt_text' => $item->name,
+        ]);
+
+        $this->reset('image');
+
+        session()->flash('success', 'Image uploaded successfully.');
+    }
+
+    public function deleteImage(int $imageId): void
+    {
+        $workspace = current_workspace();
+
+        if (!$workspace) {
+            return;
+        }
+
+        $image = ItemImage::query()
+            ->where('id', $imageId)
+            ->whereHas('item', function ($query) use ($workspace) {
+                $query->where('workspace_id', $workspace->id)
+                    ->where('collection_id', $this->collection->id);
+            })
+            ->first();
+
+        if (!$image) {
+            return;
+        }
+
+        Gate::authorize('update', $image->item);
+
+        Storage::disk('public')->delete($image->path);
+
+        $image->delete();
+
+        session()->flash('success', 'Image deleted successfully.');
+    }
+
+    public function setCoverImage(int $imageId): void
+    {
+        $workspace = current_workspace();
+
+        if (! $workspace) {
+            return;
+        }
+
+        $image = ItemImage::query()
+            ->where('id', $imageId)
+            ->whereHas('item', function ($query) use ($workspace) {
+                $query->where('workspace_id', $workspace->id)
+                    ->where('collection_id', $this->collection->id);
+            })
+            ->first();
+
+        if (! $image) {
+            return;
+        }
+
+        Gate::authorize('update', $image->item);
+
+        // mover a posición 1
+        $image->item->images()
+            ->where('id', '!=', $image->id)
+            ->increment('position');
+
+        $image->update(['position' => 1]);
+
+        session()->flash('success', 'Cover image updated.');
+    }
+
+
     public function createTag(): void
     {
         $this->validate([
@@ -236,7 +351,7 @@ new class extends Component {
 
         $workspace = current_workspace();
 
-        if (! $workspace) {
+        if (!$workspace) {
             return;
         }
 
@@ -269,7 +384,7 @@ new class extends Component {
     {
         $workspace = current_workspace();
 
-        if (! $workspace) {
+        if (!$workspace) {
             return;
         }
 
@@ -277,7 +392,7 @@ new class extends Component {
             ->where('id', $itemId)
             ->first();
 
-        if (! $item) {
+        if (!$item) {
             return;
         }
 
@@ -285,7 +400,7 @@ new class extends Component {
             ->where('id', $tagId)
             ->first();
 
-        if (! $tag) {
+        if (!$tag) {
             return;
         }
 
@@ -296,7 +411,7 @@ new class extends Component {
     {
         $workspace = current_workspace();
 
-        if (! $workspace) {
+        if (!$workspace) {
             return;
         }
 
@@ -304,7 +419,7 @@ new class extends Component {
             ->where('id', $itemId)
             ->first();
 
-        if (! $item) {
+        if (!$item) {
             return;
         }
 
@@ -315,13 +430,13 @@ new class extends Component {
     {
         $workspace = current_workspace();
 
-        if (! $workspace) {
+        if (!$workspace) {
             return;
         }
 
         $tag = $workspace->tags()->where('id', $tagId)->first();
 
-        if (! $tag) {
+        if (!$tag) {
             return;
         }
 
@@ -353,7 +468,7 @@ new class extends Component {
     {
         $workspace = current_workspace();
 
-        if (! $workspace) {
+        if (!$workspace) {
             return collect();
         }
 
@@ -384,7 +499,7 @@ new class extends Component {
             $params['condition'] = $this->filterCondition;
         }
 
-        if (! empty($this->filterTagIds)) {
+        if (!empty($this->filterTagIds)) {
             $params['tag_ids'] = $this->filterTagIds;
         }
 
@@ -396,13 +511,13 @@ new class extends Component {
     {
         $workspace = current_workspace();
 
-        if (! $workspace) {
+        if (!$workspace) {
             return collect();
         }
 
         $query = $this->collection
             ->items()
-            ->with('tags')
+            ->with(['tags', 'images'])
             ->where('workspace_id', $workspace->id);
 
         if ($this->filterStatus) {
@@ -554,7 +669,8 @@ new class extends Component {
 
     <div class="space-y-3">
         {{-- Filters --}}
-        <div class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm space-y-5 dark:border-zinc-800 dark:bg-zinc-950">
+        <div
+            class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm space-y-5 dark:border-zinc-800 dark:bg-zinc-950">
             <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                     <h2 class="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
@@ -687,7 +803,7 @@ new class extends Component {
                             wire:click="$set('filterCondition', null)"
                             class="rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-medium text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
                         >
-                            Status: {{ \App\Enums\ItemCondition::from($filterCondition)->label() }} ×
+                            Condition: {{ \App\Enums\ItemCondition::from($filterCondition)->label() }} ×
                         </button>
                     @endif
 
@@ -704,99 +820,214 @@ new class extends Component {
         </div>
         {{-- End Filters --}}
 
-    @forelse ($this->items as $item)
-        <div class="border rounded p-4 space-y-3">
-            @if ($editingId === $item->id)
-                <div class="space-y-3">
-                    {{-- aquí va todo tu formulario de edición tal cual --}}
-                </div>
-            @else
-                <div class="flex justify-between gap-4">
-                    <div>
-                        <p class="font-semibold">{{ $item->name }}</p>
-                        <p class="text-sm text-gray-500">{{ $item->slug }}</p>
-
-                        @if ($item->description)
-                            <p class="text-sm mt-2">{{ $item->description }}</p>
-                        @endif
-
-                        @if ($item->condition)
-                            <p class="text-sm mt-1">
-                                Condition: {{ $item->condition->label() }}
-                            </p>
-                        @endif
-
-                        @if ($item->status)
-                            <p class="text-sm mt-1">
-                                Status: {{ $item->status->label() }}
-                            </p>
-                        @endif
-
-                        @if ($item->location)
-                            <p class="text-sm mt-1">Location: {{ $item->location }}</p>
-                        @endif
+        @forelse ($this->items as $item)
+            <div class="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-950 transition hover:shadow-md hover:-translate-y-px">
+                @if ($editingId === $item->id)
+                    <div class="p-5 space-y-3">
+                        {{-- aquí va todo tu formulario de edición tal cual --}}
                     </div>
+                @else
+                    <div class="grid gap-5 p-5 md:grid-cols-[180px_1fr]">
+                        {{-- Cover --}}
+                        <div class="space-y-3">
+                            <div class="overflow-hidden rounded-xl border border-zinc-200 bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-900">
+                                @if ($item->images->isNotEmpty())
+                                    <img
+                                        src="{{ asset('storage/' . $item->images->first()->path) }}"
+                                        alt="{{ $item->name }}"
+                                        class="h-40 w-full object-cover md:h-44"
+                                    >
+                                @else
+                                    <div class="flex h-40 items-center justify-center text-xs text-zinc-400">
+                                        No cover
+                                    </div>
+                                @endif
+                            </div>
 
-                    <div class="flex gap-3">
-                        <button
-                            wire:click="edit({{ $item->id }})"
-                            class="text-sm text-blue-500"
-                        >
-                            Edit
-                        </button>
+                            <div class="flex items-center gap-2">
+                                <input
+                                    type="file"
+                                    wire:model="image"
+                                    accept="image/*"
+                                    class="block w-full text-xs text-zinc-500 file:mr-2 file:rounded-lg file:border-0 file:bg-zinc-100 file:px-2.5 file:py-1.5 file:text-xs file:font-medium file:text-zinc-700 hover:file:bg-zinc-200 dark:file:bg-zinc-900 dark:file:text-zinc-300"
+                                >
 
-                        <button
-                            wire:click="delete({{ $item->id }})"
-                            class="text-sm text-red-500"
-                        >
-                            Delete
-                        </button>
-                    </div>
-                </div>
+                                <button
+                                    type="button"
+                                    wire:click="uploadImage({{ $item->id }})"
+                                    class="rounded-lg border border-zinc-200 px-2.5 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-900"
+                                >
+                                    Upload
+                                </button>
+                            </div>
 
-                <div class="mt-3 space-y-2">
-                    {{-- Assigned tags --}}
-                    <div class="flex flex-wrap items-center gap-2">
-                        @foreach ($item->tags as $tag)
-                            <button
-                                type="button"
-                                wire:click="detachTag({{ $item->id }}, {{ $tag->id }})"
-                                class="rounded-full border border-zinc-600 px-2 py-1 text-xs text-zinc-300 hover:bg-zinc-800 cursor-pointer"
-                            >
-                                {{ $tag->name }} ×
-                            </button>
-                        @endforeach
+                            @error('image')
+                            <p class="text-xs text-red-500">{{ $message }}</p>
+                            @enderror
 
-                        <button
-                            type="button"
-                            wire:click="toggleTagManager({{ $item->id }})"
-                            class="text-xs text-blue-400 hover:underline"
-                        >
-                            {{ $item->tags->isNotEmpty() ? '+ Add tag' : 'Manage tags' }}
-                        </button>
-                    </div>
+                            <div wire:loading wire:target="image" class="text-xs text-zinc-500">
+                                Uploading image...
+                            </div>
+                        </div>
 
-                    {{-- Available tags --}}
-                    @if ($managingTagsFor === $item->id && $this->tags->isNotEmpty())
-                        <div class="flex flex-wrap gap-2">
-                            @foreach ($this->tags as $tag)
-                                @unless ($item->tags->contains('id', $tag->id))
+                        {{-- Content --}}
+                        <div class="min-w-0 space-y-4">
+                            <div class="flex items-start justify-between gap-4">
+                                <div class="min-w-0">
+                                    <h3 class="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+                                        {{ $item->name }}
+                                    </h3>
+
+                                    <p class="text-sm text-zinc-500">
+                                        {{ $item->slug }}
+                                    </p>
+                                </div>
+
+                                <div class="flex shrink-0 items-center gap-3">
+                                    <button
+                                        wire:click="edit({{ $item->id }})"
+                                        class="text-xs font-semibold text-blue-500 hover:text-blue-600"
+                                    >
+                                        Edit
+                                    </button>
+
+                                    <button
+                                        wire:click="delete({{ $item->id }})"
+                                        class="text-xs font-semibold text-red-500 hover:text-red-600"
+                                    >
+                                        Delete
+                                    </button>
+                                </div>
+                            </div>
+
+                            @if ($item->description)
+                                <p class="text-sm text-zinc-700 dark:text-zinc-300">
+                                    {{ $item->description }}
+                                </p>
+                            @endif
+
+                            <div class="grid gap-2 sm:grid-cols-3">
+                                @if ($item->condition)
+                                    <div class="rounded-xl bg-zinc-50 px-3 py-2 dark:bg-zinc-900">
+                                        <p class="text-[11px] font-medium uppercase tracking-wide text-zinc-500">
+                                            Condition
+                                        </p>
+                                        <p class="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                                            {{ $item->condition->label() }}
+                                        </p>
+                                    </div>
+                                @endif
+
+                                @if ($item->status)
+                                    <div class="rounded-xl bg-zinc-50 px-3 py-2 dark:bg-zinc-900">
+                                        <p class="text-[11px] font-medium uppercase tracking-wide text-zinc-500">
+                                            Status
+                                        </p>
+                                        <p class="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                                            {{ $item->status->label() }}
+                                        </p>
+                                    </div>
+                                @endif
+
+                                @if ($item->location)
+                                    <div class="rounded-xl bg-zinc-50 px-3 py-2 dark:bg-zinc-900">
+                                        <p class="text-[11px] font-medium uppercase tracking-wide text-zinc-500">
+                                            Location
+                                        </p>
+                                        <p class="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                                            {{ $item->location }}
+                                        </p>
+                                    </div>
+                                @endif
+                            </div>
+
+                            {{-- Images --}}
+                            @if ($item->images->isNotEmpty())
+                                <div class="space-y-2">
+                                    <p class="text-xs font-medium text-zinc-500">
+                                        Images
+                                    </p>
+
+                                    <div class="grid grid-cols-3 gap-2 sm:grid-cols-4">
+                                        @foreach ($item->images as $image)
+                                            <div class="relative overflow-hidden rounded-xl border border-zinc-200 dark:border-zinc-800">
+                                                <img
+                                                    src="{{ asset('storage/' . $image->path) }}"
+                                                    alt="{{ $image->alt_text ?? $item->name }}"
+                                                    class="h-20 w-full object-cover"
+                                                >
+
+                                                <button
+                                                    type="button"
+                                                    wire:click="deleteImage({{ $image->id }})"
+                                                    wire:confirm="Delete this image?"
+                                                    class="absolute right-1.5 top-1.5 rounded-full bg-black/70 px-2 py-0.5 text-xs font-medium text-white hover:bg-black"
+                                                >
+                                                    ×
+                                                </button>
+
+                                                @if ($image->position === 1)
+                                                    <span class="absolute left-1.5 top-1.5 rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-medium text-black ring-2 ring-blue-500">
+                                                Cover
+                                            </span>
+                                                @else
+                                                    <button
+                                                        type="button"
+                                                        wire:click="setCoverImage({{ $image->id }})"
+                                                        class="absolute left-1.5 top-1.5 rounded-full bg-white/80 px-2 py-0.5 text-[10px] font-medium text-black hover:bg-white"
+                                                    >
+                                                        Set cover
+                                                    </button>
+                                                @endif
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                </div>
+                            @endif
+
+                            {{-- Assigned tags --}}
+                            <div class="flex flex-wrap items-center gap-2 border-t border-zinc-200 pt-4 dark:border-zinc-800">
+                                @foreach ($item->tags as $tag)
                                     <button
                                         type="button"
-                                        wire:click="attachTag({{ $item->id }}, {{ $tag->id }})"
-                                        class="rounded-full border border-zinc-700 px-2 py-1 text-xs text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200"
+                                        wire:click="detachTag({{ $item->id }}, {{ $tag->id }})"
+                                        class="rounded-full border border-zinc-300 px-2.5 py-1 text-xs font-medium text-zinc-600 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900"
                                     >
-                                        + {{ $tag->name }}
+                                        {{ $tag->name }} ×
                                     </button>
-                                @endunless
-                            @endforeach
+                                @endforeach
+
+                                <button
+                                    type="button"
+                                    wire:click="toggleTagManager({{ $item->id }})"
+                                    class="text-xs font-medium text-blue-500 hover:text-blue-600"
+                                >
+                                    {{ $item->tags->isNotEmpty() ? '+ Add tag' : 'Manage tags' }}
+                                </button>
+                            </div>
+
+                            {{-- Available tags --}}
+                            @if ($managingTagsFor === $item->id && $this->tags->isNotEmpty())
+                                <div class="flex flex-wrap gap-2">
+                                    @foreach ($this->tags as $tag)
+                                        @unless ($item->tags->contains('id', $tag->id))
+                                            <button
+                                                type="button"
+                                                wire:click="attachTag({{ $item->id }}, {{ $tag->id }})"
+                                                class="rounded-full border border-zinc-200 px-2.5 py-1 text-xs font-medium text-zinc-500 hover:border-zinc-400 hover:text-zinc-900 dark:border-zinc-800 dark:text-zinc-400 dark:hover:border-zinc-600 dark:hover:text-zinc-100"
+                                            >
+                                                + {{ $tag->name }}
+                                            </button>
+                                        @endunless
+                                    @endforeach
+                                </div>
+                            @endif
                         </div>
-                    @endif
-                </div>
-            @endif
-        </div>
-    @empty
-        <p class="text-sm text-gray-500">No items yet.</p>
-    @endforelse
+                    </div>
+                @endif
+            </div>
+        @empty
+            <p class="text-sm text-gray-500">No items yet.</p>
+        @endforelse
     </div>
 </div>

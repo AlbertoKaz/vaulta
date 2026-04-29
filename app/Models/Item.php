@@ -7,6 +7,8 @@ use App\Enums\ItemStatus;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Item extends Model
 {
@@ -50,5 +52,15 @@ class Item extends Model
     {
         return $this->belongsToMany(Tag::class)
             ->withTimestamps();
+    }
+
+    public function images(): HasMany
+    {
+        return $this->hasMany(ItemImage::class)->orderBy('position');
+    }
+
+    public function coverImage(): HasOne
+    {
+        return $this->hasOne(ItemImage::class)->orderBy('position');
     }
 }

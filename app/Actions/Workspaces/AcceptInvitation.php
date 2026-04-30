@@ -2,6 +2,7 @@
 
 namespace App\Actions\Workspaces;
 
+use App\Actions\Activity\RecordActivity;
 use App\Models\Invitation;
 use App\Models\User;
 use App\Models\WorkspaceMember;
@@ -50,6 +51,14 @@ class AcceptInvitation
             session([
                 'current_workspace_id' => $invitation->workspace_id,
             ]);
+
+            app(RecordActivity::class)->handle(
+                workspace: $invitation->workspace,
+                user: $user,
+                action: 'member.joined',
+                description: "{$user->name} joined the workspace",
+                subject: $invitation->workspace
+            );
         });
     }
 }

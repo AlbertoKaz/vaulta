@@ -1,5 +1,6 @@
 <?php
 
+use App\Actions\Activity\RecordActivity;
 use App\Enums\ItemCondition;
 use App\Enums\ItemStatus;
 use App\Models\Collection;
@@ -39,6 +40,8 @@ new class extends Component {
     public array $filterTagIds = [];
 
     public ?TemporaryUploadedFile $image = null;
+    public ?int $previewImageFor = null;
+    public $previewImage = null;
 
     public ?int $editingId = null;
     public string $editingName = '';
@@ -101,7 +104,7 @@ new class extends Component {
             $counter++;
         }
 
-        Item::create([
+        $item = Item::create([
             'workspace_id' => $workspace->id,
             'collection_id' => $this->collection->id,
             'name' => $this->name,
@@ -114,6 +117,15 @@ new class extends Component {
             'location' => $this->location,
             'notes' => $this->notes,
         ]);
+
+        // Activity log
+        app(RecordActivity::class)->handle(
+            workspace: $workspace,
+            user: auth()->user(),
+            action: 'item.created',
+            description: "Created item '{$item->name}'",
+            subject: $item
+        );
 
         $this->reset([
             'name',
@@ -270,16 +282,24 @@ new class extends Component {
             'public'
         );
 
-        $nextPosition = $item->images()->max('position') + 1;
+        $nextPosition = ((int) $item->images()->max('position')) + 1;
 
-        ItemImage::create([
+        $image = ItemImage::create([
             'item_id' => $item->id,
             'path' => $path,
             'position' => $nextPosition,
             'alt_text' => $item->name,
         ]);
 
-        $this->reset('image');
+        app(RecordActivity::class)->handle(
+            workspace: $workspace,
+            user: auth()->user(),
+            action: 'image.uploaded',
+            description: "Uploaded image to '{$item->name}'",
+            subject: $item
+        );
+
+        $this->reset(['image', 'previewImage', 'previewImageFor']);
 
         session()->flash('success', 'Image uploaded successfully.');
     }
@@ -309,6 +329,14 @@ new class extends Component {
         Storage::disk('public')->delete($image->path);
 
         $image->delete();
+
+        app(RecordActivity::class)->handle(
+            workspace: $workspace,
+            user: auth()->user(),
+            action: 'image.deleted',
+            description: "Deleted image from '{$image->item->name}'",
+            subject: $image->item
+        );
 
         session()->flash('success', 'Image deleted successfully.');
     }
@@ -341,6 +369,14 @@ new class extends Component {
             ->increment('position');
 
         $image->update(['position' => 1]);
+
+        app(RecordActivity::class)->handle(
+            workspace: $workspace,
+            user: auth()->user(),
+            action: 'image.cover_changed',
+            description: "Changed cover image for '{$image->item->name}'",
+            subject: $image->item
+        );
 
         session()->flash('success', 'Cover image updated.');
     }
@@ -382,6 +418,16 @@ new class extends Component {
                 ]);
             }
         });
+    }
+
+    public function updatedImage(): void
+    {
+        $this->previewImage = $this->image;
+    }
+
+    public function setPreviewImageFor(int $itemId): void
+    {
+        $this->previewImageFor = $itemId;
     }
 
 
@@ -587,137 +633,170 @@ new class extends Component {
 };
 ?>
 
-<div class="max-w-3xl mx-auto p-4 space-y-6">
+<div class="max-w-4xl mx-auto p-4 space-y-6">
     <div>
-        <h1 class="text-2xl font-bold">
-            Items — {{ $collection->name }}
+        <h1 class="text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
+            Items
         </h1>
-        <p class="text-sm text-gray-500">
-            Workspace: {{ current_workspace()?->name }}
+
+        <p class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+            {{ $collection->name }} · {{ current_workspace()?->name }}
         </p>
     </div>
 
-    <form wire:submit="create" class="space-y-3">
-        <input
-            type="text"
-            wire:model="name"
-            placeholder="Item name"
-            class="w-full border rounded px-3 py-2"
-        >
-        @error('name') <p class="text-sm text-red-500">{{ $message }}</p> @enderror
+    {{-- Create Form --}}
+    <div class="rounded-2xl border border-zinc-200/60 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950/60">
+        <form wire:submit="create" class="space-y-4">
+            <div class="grid gap-4 md:grid-cols-2">
+                <div>
+                    <input
+                        type="text"
+                        wire:model="name"
+                        placeholder="Item name"
+                        class="h-[52px] w-full rounded-xl border border-zinc-300 px-3 text-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                    >
+                    @error('name') <p class="mt-1 text-sm text-red-500">{{ $message }}</p> @enderror
+                </div>
 
-        <textarea
-            wire:model="description"
-            placeholder="Description"
-            class="w-full border rounded px-3 py-2"
-        ></textarea>
+                <select
+                    wire:model="status"
+                    class="h-[52px] w-full rounded-xl border border-zinc-300 px-3 text-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                >
+                    @foreach (\App\Enums\ItemStatus::cases() as $status)
+                        <option value="{{ $status->value }}">
+                            {{ $status->label() }}
+                        </option>
+                    @endforeach
+                </select>
 
-        <select wire:model="status" class="w-full border rounded px-3 py-2">
-            @foreach (\App\Enums\ItemStatus::cases() as $status)
-                <option value="{{ $status->value }}">
-                    {{ $status->label() }}
-                </option>
-            @endforeach
-        </select>
+                <select
+                    wire:model="condition"
+                    class="h-[52px] w-full rounded-xl border border-zinc-300 px-3 text-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                >
+                    <option value="">-- Condition --</option>
 
-        <select wire:model="condition" class="w-full border rounded px-3 py-2">
-            <option value="">-- Condition --</option>
+                    @foreach (\App\Enums\ItemCondition::cases() as $condition)
+                        <option value="{{ $condition->value }}">
+                            {{ $condition->label() }}
+                        </option>
+                    @endforeach
+                </select>
 
-            @foreach (\App\Enums\ItemCondition::cases() as $condition)
-                <option value="{{ $condition->value }}">
-                    {{ $condition->label() }}
-                </option>
-            @endforeach
-        </select>
+                <input
+                    type="text"
+                    wire:model="location"
+                    placeholder="Location"
+                    class="h-[52px] w-full rounded-xl border border-zinc-300 px-3 text-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                >
 
-        <input
-            type="number"
-            step="0.01"
-            min="0"
-            wire:model="purchase_price"
-            placeholder="Purchase price"
-            class="w-full border rounded px-3 py-2"
-        >
-        @error('purchase_price') <p class="text-sm text-red-500">{{ $message }}</p> @enderror
+                <div>
+                    <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        wire:model="purchase_price"
+                        placeholder="Purchase price"
+                        class="h-[52px] w-full rounded-xl border border-zinc-300 px-3 text-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                    >
+                    @error('purchase_price') <p class="mt-1 text-sm text-red-500">{{ $message }}</p> @enderror
+                </div>
 
-        <input
-            type="number"
-            step="0.01"
-            min="0"
-            wire:model="estimated_value"
-            placeholder="Estimated value"
-            class="w-full border rounded px-3 py-2"
-        >
-        @error('estimated_value') <p class="text-sm text-red-500">{{ $message }}</p> @enderror
+                <div>
+                    <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        wire:model="estimated_value"
+                        placeholder="Estimated value"
+                        class="h-[52px] w-full rounded-xl border border-zinc-300 px-3 text-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                    >
+                    @error('estimated_value') <p class="mt-1 text-sm text-red-500">{{ $message }}</p> @enderror
+                </div>
+            </div>
 
-        <input
-            type="text"
-            wire:model="location"
-            placeholder="Location"
-            class="w-full border rounded px-3 py-2"
-        >
+            <textarea
+                wire:model="description"
+                placeholder="Description"
+                rows="3"
+                class="w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+            ></textarea>
 
-        <textarea
-            wire:model="notes"
-            placeholder="Notes"
-            class="w-full border rounded px-3 py-2"
-        ></textarea>
+            <textarea
+                wire:model="notes"
+                placeholder="Notes"
+                rows="3"
+                class="w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+            ></textarea>
 
-        <button
-            type="submit"
-            class="px-4 py-2 rounded bg-black text-white"
-        >
-            Create item
-        </button>
-    </form>
+            <div class="rounded-xl border border-dashed border-zinc-300 p-3 text-xs text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
+                Tags and images can be added after the item is created.
+            </div>
 
-    <div class="border rounded-xl p-4 space-y-4">
+            <div class="flex justify-end">
+                <button
+                    type="submit"
+                    class="h-[44px] rounded-xl border border-zinc-300 px-5 text-sm font-semibold text-zinc-900 transition hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800"
+                >
+                    Create item
+                </button>
+            </div>
+        </form>
+    </div>
+    {{-- End Create Form --}}
+
+    {{-- Tag panel --}}
+    <div class="rounded-2xl border border-zinc-200/60 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950/60">
         <div>
-            <h2 class="text-lg font-semibold">Tags</h2>
-            <p class="text-sm text-gray-500">
+            <h2 class="text-base font-semibold text-zinc-900 dark:text-zinc-100">
+                Tags
+            </h2>
+
+            <p class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
                 Create reusable tags for this workspace.
             </p>
         </div>
 
-        <form wire:submit="createTag" class="flex gap-2">
+        <form wire:submit="createTag" class="mt-4 flex gap-2">
             <input
                 type="text"
                 wire:model="tagName"
                 placeholder="Tag name"
-                class="w-full rounded-lg border px-3 py-2 text-sm"
+                class="h-9 w-full rounded-xl border border-zinc-300 px-3 text-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
             >
 
             <button
                 type="submit"
-                class="rounded-lg border px-4 py-2 text-sm font-medium"
+                class="h-9 shrink-0 rounded-xl border border-zinc-300 px-4 text-sm font-semibold text-zinc-900 transition hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-700"
             >
                 Add tag
             </button>
         </form>
 
-
         @error('tagName')
-        <p class="text-sm text-red-500">{{ $message }}</p>
+        <p class="mt-2 text-sm text-red-500">{{ $message }}</p>
         @enderror
 
-        <div class="flex flex-wrap gap-2">
+        <div class="mt-4 flex flex-wrap gap-2">
             @forelse ($this->tags as $tag)
                 <button
                     wire:click="deleteTag({{ $tag->id }})"
-                    class="rounded-full border px-3 py-1 text-xs text-gray-400 hover:bg-zinc-800"
+                    class="rounded-full border border-zinc-300 px-3 py-1.5 text-xs font-medium text-zinc-500 transition hover:border-red-500/50 hover:bg-red-500/10 hover:text-red-400 dark:border-zinc-700 dark:text-zinc-400"
                 >
                     {{ $tag->name }} ×
                 </button>
             @empty
-                <p class="text-sm text-gray-500">No tags yet.</p>
+                <p class="text-sm text-zinc-500 dark:text-zinc-400">
+                    No tags yet.
+                </p>
             @endforelse
         </div>
     </div>
+    {{-- End Tag panel --}}
 
     <div class="space-y-3">
         {{-- Filters --}}
         <div
-            class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm space-y-5 dark:border-zinc-800 dark:bg-zinc-950">
+            class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm space-y-5 dark:border-zinc-800 dark:bg-zinc-950/60">
             <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                     <h2 class="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
@@ -754,7 +833,7 @@ new class extends Component {
 
                     <select
                         wire:model.change.live="filterStatus"
-                        class="w-full rounded-xl border border-zinc-200 bg-transparent px-3 py-2.5 text-sm text-zinc-900 outline-none transition focus:border-zinc-400 dark:border-zinc-800 dark:text-zinc-100 dark:focus:border-zinc-600"
+                        class="h-9 w-full rounded-xl border border-zinc-200 bg-transparent px-3 py-2.5 text-sm text-zinc-900 outline-none transition focus:border-zinc-400 dark:border-zinc-800 dark:text-zinc-100 dark:focus:border-zinc-600"
                     >
                         <option value="">All status</option>
 
@@ -773,7 +852,7 @@ new class extends Component {
 
                     <select
                         wire:model.change.live="filterCondition"
-                        class="w-full rounded-xl border border-zinc-200 bg-transparent px-3 py-2.5 text-sm text-zinc-900 outline-none transition focus:border-zinc-400 dark:border-zinc-800 dark:text-zinc-100 dark:focus:border-zinc-600"
+                        class="h-9 w-full rounded-xl border border-zinc-200 bg-transparent px-3 py-2.5 text-sm text-zinc-900 outline-none transition focus:border-zinc-400 dark:border-zinc-800 dark:text-zinc-100 dark:focus:border-zinc-600"
                     >
                         <option value="">All conditions</option>
 
@@ -820,7 +899,7 @@ new class extends Component {
                             type="button"
                             wire:click="toggleFilterTag({{ $tag->id }})"
                             class="rounded-full border px-3 py-1.5 text-xs font-medium transition duration-150
-                        {{ in_array($tag->id, $filterTagIds, true)
+                            {{ in_array($tag->id, $filterTagIds, true)
                             ? 'border-zinc-900 bg-zinc-900 text-white shadow-sm dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-950'
                             : 'border-zinc-200 text-zinc-500 hover:border-zinc-400 hover:text-zinc-900 dark:border-zinc-800 dark:text-zinc-400 dark:hover:border-zinc-600 dark:hover:text-zinc-100' }}"
                         >
@@ -857,7 +936,7 @@ new class extends Component {
                     @foreach ($filterTagIds as $tagId)
                         <button
                             wire:click="toggleFilterTag({{ $tagId }})"
-                            class="rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-medium"
+                            class="rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-medium text-zinc-700 transition hover:bg-zinc-200 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
                         >
                             Tag: {{ $this->tags->firstWhere('id', $tagId)?->name }} ×
                         </button>
@@ -867,46 +946,139 @@ new class extends Component {
         </div>
         {{-- End Filters --}}
 
+        {{-- Items Loop --}}
         @forelse ($this->items as $item)
-            <div class="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-950 transition hover:shadow-md hover:-translate-y-px">
+            <div class="overflow-hidden rounded-2xl border border-zinc-200/60 bg-white shadow-sm transition hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950/60 dark:hover:bg-zinc-900/50">
                 @if ($editingId === $item->id)
+                    {{-- Edit Form --}}
                     <div class="p-5 space-y-3">
-                        {{-- aquí va todo tu formulario de edición tal cual --}}
+                        <input
+                            type="text"
+                            wire:model="editingName"
+                            placeholder="Item name"
+                            class="w-full border rounded px-3 py-2"
+                        >
+                        @error('editingName') <p class="text-sm text-red-500">{{ $message }}</p> @enderror
+
+                        <textarea
+                            wire:model="editingDescription"
+                            placeholder="Description"
+                            class="w-full border rounded px-3 py-2"
+                        ></textarea>
+
+                        <select wire:model="editingStatus" class="w-full border rounded px-3 py-2">
+                            @foreach (\App\Enums\ItemStatus::cases() as $status)
+                                <option value="{{ $status->value }}">
+                                    {{ $status->label() }}
+                                </option>
+                            @endforeach
+                        </select>
+
+                        <select wire:model="editingCondition" class="w-full border rounded px-3 py-2">
+                            <option value="">-- Condition --</option>
+
+                            @foreach (\App\Enums\ItemCondition::cases() as $condition)
+                                <option value="{{ $condition->value }}">
+                                    {{ $condition->label() }}
+                                </option>
+                            @endforeach
+                        </select>
+
+                        <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            wire:model="editingPurchasePrice"
+                            placeholder="Purchase price"
+                            class="w-full border rounded px-3 py-2"
+                        >
+                        @error('editingPurchasePrice') <p class="text-sm text-red-500">{{ $message }}</p> @enderror
+
+                        <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            wire:model="editingEstimatedValue"
+                            placeholder="Estimated value"
+                            class="w-full border rounded px-3 py-2"
+                        >
+                        @error('editingEstimatedValue') <p class="text-sm text-red-500">{{ $message }}</p> @enderror
+
+                        <input
+                            type="text"
+                            wire:model="editingLocation"
+                            placeholder="Location"
+                            class="w-full border rounded px-3 py-2"
+                        >
+
+                        <textarea
+                            wire:model="editingNotes"
+                            placeholder="Notes"
+                            class="w-full border rounded px-3 py-2"
+                        ></textarea>
+
+                        <div class="flex gap-2 pt-2">
+                            <button
+                                type="button"
+                                wire:click="update"
+                                class="px-4 py-2 rounded bg-black text-white"
+                            >
+                                Save changes
+                            </button>
+
+                            <button
+                                type="button"
+                                wire:click="cancelEdit"
+                                class="px-4 py-2 rounded border"
+                            >
+                                Cancel
+                            </button>
+                        </div>
                     </div>
+                    {{-- End Edit Form --}}
                 @else
                     <div class="grid gap-5 p-5 md:grid-cols-[180px_1fr]">
                         {{-- Cover --}}
                         <div class="space-y-3">
-                            <div class="overflow-hidden rounded-xl border border-zinc-200 bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-900">
+                            <div class="aspect-square overflow-hidden rounded-2xl border border-zinc-200/60 bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-900">
                                 @if ($item->images->isNotEmpty())
                                     <img
                                         src="{{ asset('storage/' . $item->images->first()->path) }}"
                                         alt="{{ $item->name }}"
-                                        class="h-40 w-full object-cover md:h-44"
+                                        class="h-full w-full object-cover"
                                     >
                                 @else
-                                    <div class="flex h-40 items-center justify-center text-xs text-zinc-400">
+                                    <div class="flex h-full w-full items-center justify-center text-xs text-zinc-400">
                                         No cover
                                     </div>
                                 @endif
                             </div>
 
-                            <div class="flex items-center gap-2">
+                            <div class="space-y-2">
                                 <input
                                     type="file"
                                     wire:model="image"
+                                    wire:change="setPreviewImageFor({{ $item->id }})"
                                     accept="image/*"
-                                    class="block w-full text-xs text-zinc-500 file:mr-2 file:rounded-lg file:border-0 file:bg-zinc-100 file:px-2.5 file:py-1.5 file:text-xs file:font-medium file:text-zinc-700 hover:file:bg-zinc-200 dark:file:bg-zinc-900 dark:file:text-zinc-300"
+                                    class="block w-full text-xs text-zinc-500 file:mr-3 file:rounded-lg file:border-0 file:bg-zinc-900 file:px-3 file:py-2 file:text-xs file:font-medium file:text-zinc-200 hover:file:bg-zinc-700"
                                 >
 
                                 <button
                                     type="button"
                                     wire:click="uploadImage({{ $item->id }})"
-                                    class="rounded-lg border border-zinc-200 px-2.5 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-900"
+                                    class="w-full rounded-lg border border-zinc-300 px-3 py-1.5 text-xs font-medium text-zinc-700 transition hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900"
                                 >
-                                    Upload
+                                    Upload image
                                 </button>
                             </div>
+
+                            @if ($previewImage && $previewImageFor === $item->id)
+                                <img
+                                    src="{{ $previewImage->temporaryUrl() }}"
+                                    alt="Preview"
+                                    class="h-24 w-24 rounded-xl border border-zinc-200 object-cover dark:border-zinc-800"
+                                >
+                            @endif
 
                             @error('image')
                             <p class="text-xs text-red-500">{{ $message }}</p>
@@ -924,23 +1096,19 @@ new class extends Component {
                                     <h3 class="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
                                         {{ $item->name }}
                                     </h3>
-
-                                    <p class="text-sm text-zinc-500">
-                                        {{ $item->slug }}
-                                    </p>
                                 </div>
 
-                                <div class="flex shrink-0 items-center gap-3">
+                                <div class="flex shrink-0 items-center gap-2">
                                     <button
                                         wire:click="edit({{ $item->id }})"
-                                        class="text-xs font-semibold text-blue-500 hover:text-blue-600"
+                                        class="rounded-lg px-2.5 py-1 text-xs font-medium text-blue-500 transition hover:bg-blue-900/50"
                                     >
                                         Edit
                                     </button>
 
                                     <button
                                         wire:click="delete({{ $item->id }})"
-                                        class="text-xs font-semibold text-red-500 hover:text-red-600"
+                                        class="rounded-lg px-2.5 py-1 text-xs font-medium text-red-500 transition hover:bg-red-900/50"
                                     >
                                         Delete
                                     </button>
@@ -953,9 +1121,9 @@ new class extends Component {
                                 </p>
                             @endif
 
-                            <div class="grid gap-2 sm:grid-cols-3">
+                            <div class="mt-3 grid gap-2 sm:grid-cols-3">
                                 @if ($item->condition)
-                                    <div class="rounded-xl bg-zinc-50 px-3 py-2 dark:bg-zinc-900">
+                                    <div class="rounded-xl border border-zinc-800 bg-zinc-900/40 px-4 py-3">
                                         <p class="text-[11px] font-medium uppercase tracking-wide text-zinc-500">
                                             Condition
                                         </p>
@@ -966,7 +1134,7 @@ new class extends Component {
                                 @endif
 
                                 @if ($item->status)
-                                    <div class="rounded-xl bg-zinc-50 px-3 py-2 dark:bg-zinc-900">
+                                        <div class="rounded-xl border border-zinc-800 bg-zinc-900/40 px-4 py-3">
                                         <p class="text-[11px] font-medium uppercase tracking-wide text-zinc-500">
                                             Status
                                         </p>
@@ -977,7 +1145,7 @@ new class extends Component {
                                 @endif
 
                                 @if ($item->location)
-                                    <div class="rounded-xl bg-zinc-50 px-3 py-2 dark:bg-zinc-900">
+                                        <div class="rounded-xl border border-zinc-800 bg-zinc-900/40 px-4 py-3">
                                         <p class="text-[11px] font-medium uppercase tracking-wide text-zinc-500">
                                             Location
                                         </p>
@@ -989,7 +1157,7 @@ new class extends Component {
                             </div>
 
                             {{-- Images --}}
-                            @if ($item->images->isNotEmpty())
+                            @if ($item->images->count() > 1)
                                 <div class="space-y-2">
                                     <p class="text-xs font-medium text-zinc-500">
                                         Images
@@ -1085,7 +1253,7 @@ new class extends Component {
                                 <button
                                     type="button"
                                     wire:click="toggleTagManager({{ $item->id }})"
-                                    class="text-xs font-medium text-blue-500 hover:text-blue-600"
+                                    class="text-xs font-medium text-blue-500 transition hover:text-blue-400"
                                 >
                                     {{ $item->tags->isNotEmpty() ? '+ Add tag' : 'Manage tags' }}
                                 </button>
@@ -1114,5 +1282,6 @@ new class extends Component {
         @empty
             <p class="text-sm text-gray-500">No items yet.</p>
         @endforelse
+        {{-- End Items Loop --}}
     </div>
 </div>

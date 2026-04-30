@@ -137,79 +137,112 @@ new class extends Component {
 };
 ?>
 
-<div class="max-w-2xl mx-auto p-4">
-    <h1 class="text-2xl font-bold mb-4">
-        Collections — {{ current_workspace()?->name ?? 'No workspace' }}
-    </h1>
+<div class="max-w-4xl mx-auto p-4 space-y-6">
+    <div>
+        <h1 class="text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
+            Collections
+        </h1>
 
-    <form wire:submit="create" class="mb-6 space-y-2">
-        <input
-            type="text"
-            wire:model="name"
-            placeholder="Collection name"
-            class="w-full border rounded px-3 py-2"
-        >
+        <p class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+            {{ current_workspace()?->name ?? 'No workspace' }}
+        </p>
+    </div>
 
-        @error('name')
-        <p class="text-sm text-red-500">{{ $message }}</p>
-        @enderror
+    {{-- Create Form --}}
+    <div class="rounded-2xl border border-zinc-200/60 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950/60">
+        <form wire:submit="create" class="space-y-3">
+            <input
+                type="text"
+                wire:model="name"
+                placeholder="Collection name"
+                class="w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-zinc-700 dark:bg-zinc-900"
+            >
 
-        <button
-            type="submit"
-            class="px-4 py-2 rounded bg-black text-white"
-        >
-            Create collection
-        </button>
-    </form>
+            @error('name')
+            <p class="text-sm text-red-500">{{ $message }}</p>
+            @enderror
 
-    <div class="space-y-2">
+            <button
+                type="submit"
+                class="rounded-xl bg-black px-4 py-2 text-sm font-semibold text-white transition hover:bg-zinc-800 dark:bg-zinc-100 dark:text-black dark:hover:bg-zinc-300"
+            >
+                Create collection
+            </button>
+        </form>
+    </div>
+    {{-- End Create Form --}}
+
+    {{-- Loop --}}
+    <div class="space-y-3">
         @forelse ($this->collections as $collection)
             @if ($editingId === $collection->id)
-                <div class="flex gap-2">
-                    <input
-                        type="text"
-                        wire:model="editingName"
-                        class="border px-2 py-1 rounded w-full"
-                    >
 
-                    <button wire:click="update" class="text-green-500 text-sm">
-                        Save
-                    </button>
+                {{-- Edit mode --}}
+                <div class="rounded-xl border border-zinc-200/60 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950/60">
+                    <div class="flex gap-2">
+                        <input
+                            type="text"
+                            wire:model="editingName"
+                            class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+                        >
+
+                        <button wire:click="update" class="text-sm font-medium text-green-500">
+                            Save
+                        </button>
+                    </div>
                 </div>
+
             @else
-                <div class="flex justify-between items-center">
+
+                {{-- Normal mode --}}
+                <div class="flex items-center justify-between gap-4 rounded-xl border border-zinc-200/60 bg-white px-4 py-3 shadow-sm transition hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950/60 dark:hover:bg-zinc-900/60">
+
                     <div>
-                        <p class="font-medium">{{ $collection->name }}</p>
-                        <p class="text-sm text-gray-500">{{ $collection->slug }}</p>
+                        <p class="font-medium text-zinc-900 dark:text-zinc-100">
+                            {{ $collection->name }}
+                        </p>
+
+                        <p class="text-xs text-zinc-500">
+                            {{ $collection->slug }}
+                        </p>
                     </div>
 
-                    <div class="flex gap-2">
+                    <div class="flex items-center gap-3 text-sm">
                         <a
-                            href="{{ route('exports.items', ['collection_id' => $collection->id]) }}"
-                            class="rounded-lg border px-3 py-2 text-sm font-medium hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                            href="{{ route('items.index', $collection) }}"
+                            class="font-medium text-blue-500 hover:underline"
                         >
-                            Export CSV
+                            View
                         </a>
 
-                        <button wire:click="edit({{ $collection->id }})" class="text-blue-500 text-sm">
+                        <button
+                            wire:click="edit({{ $collection->id }})"
+                            class="text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
+                        >
                             Edit
                         </button>
 
-                        <button wire:click="delete({{ $collection->id }})" class="text-red-500 text-sm">
+                        <button
+                            wire:click="delete({{ $collection->id }})"
+                            class="text-red-500 hover:underline"
+                        >
                             Delete
                         </button>
 
                         <a
-                            href="{{ route('items.index', $collection) }}"
-                            class="text-sm text-blue-500"
+                            href="{{ route('exports.items', ['collection_id' => $collection->id]) }}"
+                            class="rounded-lg border border-zinc-300 px-3 py-1.5 text-xs font-medium hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
                         >
-                            View items
+                            Export
                         </a>
                     </div>
                 </div>
+
             @endif
         @empty
-            <p class="text-sm text-gray-500">No collections yet.</p>
+            <p class="text-sm text-zinc-500">
+                No collections yet.
+            </p>
         @endforelse
     </div>
 </div>

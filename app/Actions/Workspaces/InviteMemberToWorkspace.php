@@ -2,6 +2,7 @@
 
 namespace App\Actions\Workspaces;
 
+use App\Actions\Activity\RecordActivity;
 use App\Enums\WorkspaceRole;
 use App\Models\Invitation;
 use App\Models\User;
@@ -54,6 +55,14 @@ class InviteMemberToWorkspace
 
         Notification::route('mail', $email)
             ->notify(new WorkspaceInvitationNotification($invitation));
+
+        app(RecordActivity::class)->handle(
+            workspace: $workspace,
+            user: $inviter,
+            action: 'member.invited',
+            description: "Invited {$email} to workspace",
+            subject: $workspace
+        );
 
         return $invitation;
     }

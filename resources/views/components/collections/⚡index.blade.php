@@ -207,7 +207,7 @@ new class extends Component {
                         </p>
                     </div>
 
-                    <div class="flex items-center gap-3 text-sm">
+                    <div class="flex items-center gap-3 text-xs">
                         <a
                             href="{{ route('items.index', $collection) }}"
                             class="font-medium text-blue-500 hover:underline"

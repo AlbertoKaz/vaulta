@@ -15,10 +15,12 @@ use Livewire\Attributes\Locked;
 use Livewire\Component;
 use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 use Livewire\WithFileUploads;
+use Livewire\WithPagination;
 
 new class extends Component {
 
     use WithFileUploads;
+    use WithPagination;
 
     #[Locked]
     public Collection $collection;
@@ -548,10 +550,14 @@ new class extends Component {
                 array_diff($this->filterTagIds, [$tagId])
             );
 
+            $this->resetPage();
+
             return;
         }
 
         $this->filterTagIds[] = $tagId;
+
+        $this->resetPage();
     }
 
     public function getTagsProperty()
@@ -575,6 +581,18 @@ new class extends Component {
         $this->filterStatus = null;
         $this->filterCondition = null;
         $this->filterTagIds = [];
+
+        $this->resetPage();
+    }
+
+    public function updatedFilterStatus(): void
+    {
+        $this->resetPage();
+    }
+
+    public function updatedFilterCondition(): void
+    {
+        $this->resetPage();
     }
 
     // CSV Export
@@ -627,7 +645,7 @@ new class extends Component {
             });
         }
 
-        return $query->latest()->get();
+        return $query->latest()->paginate(3);
     }
 
 };
@@ -948,92 +966,125 @@ new class extends Component {
 
         {{-- Items Loop --}}
         @forelse ($this->items as $item)
-            <div class="overflow-hidden rounded-2xl border border-zinc-200/60 bg-white shadow-sm transition hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950/60 dark:hover:bg-zinc-900/50">
+            <div
+                x-data
+                x-ref="item{{ $item->id }}"
+                class="overflow-hidden rounded-2xl border border-zinc-200/60 bg-white shadow-sm transition hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950/60 dark:hover:bg-zinc-900/50">
                 @if ($editingId === $item->id)
                     {{-- Edit Form --}}
-                    <div class="p-5 space-y-3">
-                        <input
-                            type="text"
-                            wire:model="editingName"
-                            placeholder="Item name"
-                            class="w-full border rounded px-3 py-2"
-                        >
-                        @error('editingName') <p class="text-sm text-red-500">{{ $message }}</p> @enderror
+                    <div
+                        x-data="{ open: true }"
+                        x-show="open"
+                        x-transition.opacity.duration.200ms
+                        class="p-5 space-y-5"
+                    >
 
+                        {{-- Name --}}
+                        <div class="space-y-1.5">
+                            <input
+                                type="text"
+                                wire:model="editingName"
+                                placeholder="Item name"
+                                class="w-full rounded-xl border border-zinc-200 bg-transparent px-3 py-2.5 text-sm text-zinc-900 outline-none transition focus:border-zinc-400 dark:border-zinc-800 dark:text-zinc-100 dark:focus:border-zinc-600"
+                            >
+                            @error('editingName') <p class="text-xs text-red-500">{{ $message }}</p> @enderror
+                        </div>
+
+                        {{-- Description --}}
                         <textarea
                             wire:model="editingDescription"
                             placeholder="Description"
-                            class="w-full border rounded px-3 py-2"
+                            class="w-full rounded-xl border border-zinc-200 bg-transparent px-3 py-2.5 text-sm text-zinc-900 outline-none transition focus:border-zinc-400 dark:border-zinc-800 dark:text-zinc-100 dark:focus:border-zinc-600"
                         ></textarea>
 
-                        <select wire:model="editingStatus" class="w-full border rounded px-3 py-2">
-                            @foreach (\App\Enums\ItemStatus::cases() as $status)
-                                <option value="{{ $status->value }}">
-                                    {{ $status->label() }}
-                                </option>
-                            @endforeach
-                        </select>
+                        {{-- Status + Condition --}}
+                        <div class="grid gap-3 sm:grid-cols-2">
+                            <select
+                                wire:model="editingStatus"
+                                class="h-9 w-full rounded-xl border border-zinc-200 bg-transparent px-3 py-2.5 text-sm dark:border-zinc-800"
+                            >
+                                @foreach (\App\Enums\ItemStatus::cases() as $status)
+                                    <option value="{{ $status->value }}">
+                                        {{ $status->label() }}
+                                    </option>
+                                @endforeach
+                            </select>
 
-                        <select wire:model="editingCondition" class="w-full border rounded px-3 py-2">
-                            <option value="">-- Condition --</option>
+                            <select
+                                wire:model="editingCondition"
+                                class="w-full rounded-xl border border-zinc-200 bg-transparent px-3 py-2.5 text-sm dark:border-zinc-800"
+                            >
+                                <option value="">Condition</option>
 
-                            @foreach (\App\Enums\ItemCondition::cases() as $condition)
-                                <option value="{{ $condition->value }}">
-                                    {{ $condition->label() }}
-                                </option>
-                            @endforeach
-                        </select>
+                                @foreach (\App\Enums\ItemCondition::cases() as $condition)
+                                    <option value="{{ $condition->value }}">
+                                        {{ $condition->label() }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
 
-                        <input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            wire:model="editingPurchasePrice"
-                            placeholder="Purchase price"
-                            class="w-full border rounded px-3 py-2"
-                        >
-                        @error('editingPurchasePrice') <p class="text-sm text-red-500">{{ $message }}</p> @enderror
+                        {{-- Prices --}}
+                        <div class="grid gap-3 sm:grid-cols-2">
+                            <div>
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    wire:model="editingPurchasePrice"
+                                    placeholder="Purchase price"
+                                    class="w-full rounded-xl border border-zinc-200 bg-transparent px-3 py-2.5 text-sm dark:border-zinc-800"
+                                >
+                                @error('editingPurchasePrice') <p class="text-xs text-red-500">{{ $message }}</p> @enderror
+                            </div>
 
-                        <input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            wire:model="editingEstimatedValue"
-                            placeholder="Estimated value"
-                            class="w-full border rounded px-3 py-2"
-                        >
-                        @error('editingEstimatedValue') <p class="text-sm text-red-500">{{ $message }}</p> @enderror
+                            <div>
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    wire:model="editingEstimatedValue"
+                                    placeholder="Estimated value"
+                                    class="w-full rounded-xl border border-zinc-200 bg-transparent px-3 py-2.5 text-sm dark:border-zinc-800"
+                                >
+                                @error('editingEstimatedValue') <p class="text-xs text-red-500">{{ $message }}</p> @enderror
+                            </div>
+                        </div>
 
+                        {{-- Location --}}
                         <input
                             type="text"
                             wire:model="editingLocation"
                             placeholder="Location"
-                            class="w-full border rounded px-3 py-2"
+                            class="w-full rounded-xl border border-zinc-200 bg-transparent px-3 py-2.5 text-sm dark:border-zinc-800"
                         >
 
+                        {{-- Notes --}}
                         <textarea
                             wire:model="editingNotes"
                             placeholder="Notes"
-                            class="w-full border rounded px-3 py-2"
+                            class="w-full rounded-xl border border-zinc-200 bg-transparent px-3 py-2.5 text-sm dark:border-zinc-800"
                         ></textarea>
 
-                        <div class="flex gap-2 pt-2">
+                        {{-- Actions --}}
+                        <div class="flex items-center gap-3 pt-2">
                             <button
                                 type="button"
                                 wire:click="update"
-                                class="px-4 py-2 rounded bg-black text-white"
+                                class="rounded-lg bg-white px-4 py-2 text-sm font-medium text-black hover:bg-zinc-200 transition"
                             >
-                                Save changes
+                                Save
                             </button>
 
                             <button
                                 type="button"
                                 wire:click="cancelEdit"
-                                class="px-4 py-2 rounded border"
+                                class="rounded-lg border border-zinc-300 px-4 py-2 text-sm text-zinc-500 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-900 transition"
                             >
                                 Cancel
                             </button>
                         </div>
+
                     </div>
                     {{-- End Edit Form --}}
                 @else
@@ -1101,7 +1152,15 @@ new class extends Component {
                                 <div class="flex shrink-0 items-center gap-2">
                                     <button
                                         wire:click="edit({{ $item->id }})"
-                                        class="rounded-lg px-2.5 py-1 text-xs font-medium text-blue-500 transition hover:bg-blue-900/50"
+                                        x-on:click="
+                                            setTimeout(() => {
+                                                $refs.item{{ $item->id }}?.scrollIntoView({
+                                                    behavior: 'smooth',
+                                                    block: 'center'
+                                                })
+                                            }, 250)
+                                            "
+                                        class="text-xs font-semibold text-blue-500 hover:text-blue-600"
                                     >
                                         Edit
                                     </button>
@@ -1283,5 +1342,11 @@ new class extends Component {
             <p class="text-sm text-gray-500">No items yet.</p>
         @endforelse
         {{-- End Items Loop --}}
+
+        @if ($this->items->hasPages())
+            <div class="pt-4">
+                {{ $this->items->links() }}
+            </div>
+        @endif
     </div>
 </div>

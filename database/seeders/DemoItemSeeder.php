@@ -28,6 +28,24 @@ class DemoItemSeeder extends Seeder
         $item = Item::create([
             'workspace_id' => $collection->workspace_id,
             'collection_id' => $collection->id,
+            'name' => 'Tintin Moon Rocket Figure',
+            'slug' => Str::slug('Tintin Moon Rocket Figure'),
+            'description' => 'Detailed collectible figure from Tintin.',
+            'status' => ItemStatus::STORED,
+            'condition' => ItemCondition::GOOD,
+            'purchase_price' => 195,
+            'estimated_value' => 330,
+            'location' => 'Storage box A3',
+            'notes' => null,
+        ]);
+
+        $this->attachTags($item, ['Display Piece']);
+        $this->attachImage($item, 'moonrocket.jpg');
+
+
+        $item = Item::create([
+            'workspace_id' => $collection->workspace_id,
+            'collection_id' => $collection->id,
             'name' => 'KAWS Companion 2020 Figure',
             'slug' => Str::slug('KAWS Companion 2020 Figure'),
             'description' => 'High-quality KAWS Companion 2020 figure in perfect display condition.',
@@ -43,23 +61,6 @@ class DemoItemSeeder extends Seeder
         $this->attachImage($item, 'kawscompanion.jpg');
         $this->attachImage($item, 'kawscompanion-2.jpg');
         $this->attachImage($item, 'kawscompanion-3.jpg');
-
-        $item = Item::create([
-            'workspace_id' => $collection->workspace_id,
-            'collection_id' => $collection->id,
-            'name' => 'Tintin Moon Rocket Figure',
-            'slug' => Str::slug('Tintin Moon Rocket Figure'),
-            'description' => 'Detailed collectible figure from Tintin.',
-            'status' => ItemStatus::STORED,
-            'condition' => ItemCondition::GOOD,
-            'purchase_price' => 195,
-            'estimated_value' => 330,
-            'location' => 'Storage box A3',
-            'notes' => null,
-        ]);
-
-        $this->attachTags($item, ['Display Piece']);
-        $this->attachImage($item, 'moonrocket.jpg');
     }
 
     private function seedArtVault(): void

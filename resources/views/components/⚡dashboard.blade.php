@@ -327,7 +327,7 @@ new class extends Component
     <div class="rounded-2xl border border-zinc-200/60 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
         <div class="mb-4">
             <h2 class="text-base font-semibold text-zinc-900 dark:text-zinc-100">
-                Latest items
+                Top Value items
             </h2>
 
             <p class="mt-1 text-sm text-zinc-500">
@@ -337,7 +337,7 @@ new class extends Component
 
         {{-- Loop --}}
         <div class="grid gap-3 lg:grid-cols-2">
-            @forelse ($this->latestItems as $item)
+            @forelse ($this->topItems as $item)
                 <div class="group flex items-center justify-between gap-4 rounded-xl border border-zinc-800/70 bg-zinc-950/70 px-4 py-3 transition hover:bg-zinc-900/70">
                     <div class="flex min-w-0 items-center gap-3">
                         <div class="h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-zinc-900">
@@ -367,9 +367,9 @@ new class extends Component
                                 {{ $item->status?->label() ?? 'No status' }}
 
                                 @if ($item->estimated_value)
-                                    <span class="font-medium text-zinc-200">
-                                · €{{ number_format((float) $item->estimated_value, 2) }}
-                            </span>
+                                    <span class="font-medium text-emerald-500">
+                                    €{{ number_format((float) $item->estimated_value, 2) }}
+                                    </span>
                                 @endif
                             </p>
                         </div>

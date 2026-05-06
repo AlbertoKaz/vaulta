@@ -324,28 +324,40 @@ new class extends Component
     </div>
 
     {{-- Top valuable items --}}
-    <div class="rounded-2xl border border-zinc-200/60 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
-        <div class="mb-4">
-            <h2 class="text-base font-semibold text-zinc-900 dark:text-zinc-100">
-                Top Value items
-            </h2>
+    <div class="rounded-2xl border border-amber-500/10 bg-gradient-to-br from-zinc-950 via-zinc-950 to-amber-950/10 p-5 shadow-[0_0_40px_rgba(251,191,36,0.04)]">
+        <div class="mb-4 flex items-start justify-between gap-4">
+            <div>
+                <h2 class="text-base font-semibold text-zinc-100">
+                    Top Value items
+                </h2>
 
-            <p class="mt-1 text-sm text-zinc-500">
-                Most recently added items in this workspace.
-            </p>
+                <p class="mt-1 text-sm text-zinc-500">
+                    Highest estimated value items in this workspace.
+                </p>
+            </div>
+
+            <div class="rounded-full border border-amber-500/20 bg-amber-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-amber-300">
+                Premium
+            </div>
         </div>
 
         {{-- Loop --}}
         <div class="grid gap-3 lg:grid-cols-2">
-            @forelse ($this->topItems as $item)
-                <div class="group flex items-center justify-between gap-4 rounded-xl border border-zinc-800/70 bg-zinc-950/70 px-4 py-3 transition hover:bg-zinc-900/70">
+            @forelse ($this->topItems as $index => $item)
+                <div class="group flex items-center justify-between gap-4 rounded-xl border border-amber-500/10 bg-zinc-950/80 px-4 py-3 transition duration-200 hover:border-amber-400/20 hover:bg-zinc-900/80">
                     <div class="flex min-w-0 items-center gap-3">
-                        <div class="h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-zinc-900">
+                        {{-- Ranking --}}
+                        <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-amber-500/20 bg-amber-500/10 text-xs font-bold text-amber-300">
+                            #{{ $index + 1 }}
+                        </div>
+
+                        {{-- Cover --}}
+                        <div class="h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900">
                             @if ($item->images->first())
                                 <img
                                     src="{{ asset('storage/' . $item->images->first()->path) }}"
                                     alt="{{ $item->name }}"
-                                    class="h-full w-full object-cover"
+                                    class="h-full w-full object-cover transition duration-300 group-hover:scale-105"
                                 >
                             @else
                                 <div class="flex h-full w-full items-center justify-center text-center text-[11px] text-zinc-500">
@@ -354,6 +366,7 @@ new class extends Component
                             @endif
                         </div>
 
+                        {{-- Content --}}
                         <div class="min-w-0">
                             <p class="truncate text-sm font-semibold text-zinc-100">
                                 {{ $item->name }}
@@ -363,21 +376,24 @@ new class extends Component
                                 {{ $item->collection?->name ?? 'No collection' }}
                             </p>
 
-                            <p class="mt-0.5 text-xs text-zinc-500">
+                            <div class="mt-1 flex items-center gap-2">
+                            <span class="text-xs text-zinc-500">
                                 {{ $item->status?->label() ?? 'No status' }}
+                            </span>
 
                                 @if ($item->estimated_value)
-                                    <span class="font-medium text-emerald-500">
+                                    <span class="text-xs font-semibold text-amber-300">
                                     €{{ number_format((float) $item->estimated_value, 2) }}
-                                    </span>
+                                </span>
                                 @endif
-                            </p>
+                            </div>
                         </div>
                     </div>
 
+                    {{-- Action --}}
                     <a
                         href="{{ route('items.index', $item->collection_id) }}"
-                        class="shrink-0 rounded-lg px-2.5 py-1 text-xs font-medium text-blue-400 hover:bg-blue-950/40"
+                        class="shrink-0 rounded-lg border border-transparent px-2.5 py-1 text-xs font-medium text-amber-200 transition hover:border-amber-500/20 hover:bg-amber-500/10 hover:text-amber-100"
                     >
                         View
                     </a>
@@ -391,27 +407,34 @@ new class extends Component
     </div>
 
     {{-- Latest items --}}
-    <div class="rounded-2xl border border-zinc-200/60 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
-        <div class="mb-4">
-            <h2 class="text-base font-semibold text-zinc-900 dark:text-zinc-100">
-                Latest items
-            </h2>
+    <div class="rounded-2xl border border-zinc-800/70 bg-zinc-950/40 p-5 backdrop-blur-sm">
+        <div class="mb-4 flex items-start justify-between gap-4">
+            <div>
+                <h2 class="text-base font-semibold text-zinc-100">
+                    Latest items
+                </h2>
 
-            <p class="mt-1 text-sm text-zinc-500">
-                Most recently added items in this workspace.
-            </p>
+                <p class="mt-1 text-sm text-zinc-500">
+                    Most recently added items in this workspace.
+                </p>
+            </div>
+
+            <div class="rounded-full border border-zinc-800 bg-zinc-900/80 px-3 py-1 text-[11px] font-medium uppercase tracking-wide text-zinc-400">
+                Recent
+            </div>
         </div>
 
         <div class="grid gap-3 lg:grid-cols-2">
             @forelse ($this->latestItems as $item)
-                <div class="group flex items-center justify-between gap-4 rounded-xl border border-zinc-800/70 bg-zinc-950/70 px-4 py-3 transition hover:bg-zinc-900/70">
+                <div class="group flex items-center justify-between gap-4 rounded-xl border border-zinc-800/80 bg-zinc-950/70 px-4 py-3 transition duration-200 hover:border-zinc-700 hover:bg-zinc-900/70">
                     <div class="flex min-w-0 items-center gap-3">
-                        <div class="h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-zinc-900">
+                        {{-- Cover --}}
+                        <div class="h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900">
                             @if ($item->images->first())
                                 <img
                                     src="{{ asset('storage/' . $item->images->first()->path) }}"
                                     alt="{{ $item->name }}"
-                                    class="h-full w-full object-cover"
+                                    class="h-full w-full object-cover transition duration-300 group-hover:scale-105"
                                 >
                             @else
                                 <div class="flex h-full w-full items-center justify-center text-center text-[11px] text-zinc-500">
@@ -420,6 +443,7 @@ new class extends Component
                             @endif
                         </div>
 
+                        {{-- Content --}}
                         <div class="min-w-0">
                             <p class="truncate text-sm font-semibold text-zinc-100">
                                 {{ $item->name }}
@@ -429,21 +453,24 @@ new class extends Component
                                 {{ $item->collection?->name ?? 'No collection' }}
                             </p>
 
-                            <p class="mt-0.5 text-xs text-zinc-500">
+                            <div class="mt-1 flex items-center gap-2">
+                            <span class="text-xs text-zinc-500">
                                 {{ $item->status?->label() ?? 'No status' }}
+                            </span>
 
                                 @if ($item->estimated_value)
-                                    <span class="font-medium text-zinc-200">
-                                · €{{ number_format((float) $item->estimated_value, 2) }}
-                            </span>
+                                    <span class="text-xs font-medium text-zinc-300">
+                                    · €{{ number_format((float) $item->estimated_value, 2) }}
+                                </span>
                                 @endif
-                            </p>
+                            </div>
                         </div>
                     </div>
 
+                    {{-- Action --}}
                     <a
                         href="{{ route('items.index', $item->collection_id) }}"
-                        class="shrink-0 rounded-lg px-2.5 py-1 text-xs font-medium text-blue-400 hover:bg-blue-950/40"
+                        class="shrink-0 rounded-lg border border-transparent px-2.5 py-1 text-xs font-medium text-zinc-300 transition hover:border-zinc-700 hover:bg-zinc-900 hover:text-white"
                     >
                         View
                     </a>

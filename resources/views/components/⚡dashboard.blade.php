@@ -126,7 +126,7 @@ new class extends Component
         return $this->workspace->items()
             ->with('collection')
             ->latest()
-            ->take(5)
+            ->take(2)
             ->get();
     }
 

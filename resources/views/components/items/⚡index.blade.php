@@ -645,7 +645,7 @@ new class extends Component {
             });
         }
 
-        return $query->latest()->paginate(3);
+        return $query->latest()->paginate(1);
     }
 
 };
